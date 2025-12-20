@@ -762,10 +762,10 @@ EOF
     if [ "$ENABLE_DIRSEARCH" = true ] && [ -f mar0xwan.txt ]; then
         optional_sections="${optional_sections}<div class=\"section\"><h2>📁 Directory Bruteforce Results</h2><table id=\"dirsearchTable\"><thead><tr><th onclick=\"sortTable('dirsearchTable', 0)\">#</th><th onclick=\"sortTable('dirsearchTable', 1)\">Path</th></tr></thead><tbody>"
         counter=1
-        grep "200" mar0xwan.txt 2>/dev/null | while IFS= read -r line; do
+        while IFS= read -r line; do
             optional_sections="${optional_sections}<tr><td>$counter</td><td>$line</td></tr>"
             counter=$((counter + 1))
-        done
+        done < <(grep "200" mar0xwan.txt 2>/dev/null)
         optional_sections="${optional_sections}</tbody></table></div>"
     fi
     
@@ -1011,8 +1011,8 @@ main() {
         if [ -s live_hosts.txt ] && command -v dnsx &> /dev/null && command -v naabu &> /dev/null; then
             print_info "Extracting domains and resolving to IPs..."
             # Step 1: Extract domains & resolve to IPs
-            cat live_hosts.txt | sed 's|https\?://||' | cut -d'/' -f1 | sort -u > domains_for_port.txt
-            if cat domains_for_port.txt | dnsx -a -resp-only -silent | sort -u > ips.txt 2>/dev/null; then
+            sed 's|https\?://||' live_hosts.txt | cut -d'/' -f1 | sort -u > domains_for_port.txt
+            if dnsx -a -resp-only -silent < domains_for_port.txt | sort -u > ips.txt 2>/dev/null; then
                 ip_count=$(wc -l < ips.txt 2>/dev/null || echo 0)
                 print_success "Resolved $ip_count unique IPs"
                 
@@ -1476,7 +1476,7 @@ $(grep -c '\.json' allurls.txt 2>/dev/null || echo 0)
 $(wc -l < params.txt 2>/dev/null || echo 0)"
 
         # Add optional sections only if they were enabled
-        if [ "$ENABLE_DIRSEARCH" = true ] && [ "$dirsearch_count" -gt 0 ]; then
+        if [ "$ENABLE_DIRSEARCH" = true ] && [ -n "${dirsearch_count:-}" ] && [ "$dirsearch_count" -gt 0 ]; then
             discord_msg="${discord_msg}
 📁 Dirsearch
 ${dirsearch_count} found"
