@@ -88,6 +88,13 @@ get_iso_timestamp() {
     date -u '+%Y-%m-%dT%H:%M:%SZ'
 }
 
+# Function to escape JSON strings
+escape_json() {
+    local str="$1"
+    # Escape backslashes, quotes, newlines, tabs, and other control characters
+    echo "$str" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' '
+}
+
 # Function to send Discord notification
 send_discord() {
     if [ "$NOTIFY_ENABLED" = false ]; then
@@ -98,11 +105,11 @@ send_discord() {
         return 0
     fi
     
-    local title="$1"
-    local description="$2"
+    local title="$(escape_json "$1")"
+    local description="$(escape_json "$2")"
     local color="$3"
     local fields="$4"
-    local footer="$5"
+    local footer="$(escape_json "$5")"
     
     # Build JSON payload
     local json_payload=$(cat <<EOF
@@ -125,15 +132,15 @@ EOF
 
 # Send scan start notification
 send_discord_start() {
-    local domain="$1"
-    local timestamp="$2"
+    local domain="$(escape_json "$1")"
+    local timestamp="$(escape_json "$2")"
     
     local fields='[
       {"name": "🎯 Target", "value": "'"$domain"'", "inline": true},
       {"name": "⏰ Started", "value": "'"$timestamp"'", "inline": true}
     ]'
     
-    send_discord "🚀 Scan Started" "Starting reconnaissance on **$domain**" 255 "$fields" "0xMarvul RECON FLOW"
+    send_discord "🚀 Scan Started" "Starting reconnaissance on **$1**" 255 "$fields" "0xMarvul RECON FLOW"
 }
 
 # Send scan completion notification
@@ -170,16 +177,16 @@ send_discord_complete() {
 
 # Send error notification
 send_discord_error() {
-    local domain="$1"
-    local tool_name="$2"
-    local error_msg="$3"
+    local domain="$(escape_json "$1")"
+    local tool_name="$(escape_json "$2")"
+    local error_msg="$(escape_json "$3")"
     
     local fields='[
       {"name": "🔧 Tool", "value": "'"$tool_name"'", "inline": true},
       {"name": "❌ Error", "value": "'"$error_msg"'", "inline": true}
     ]'
     
-    send_discord "⚠️ Tool Error" "An error occurred during scan of **$domain**" 16711680 "$fields" "Scan will continue with other tools"
+    send_discord "⚠️ Tool Error" "An error occurred during scan of **$1**" 16711680 "$fields" "Scan will continue with other tools"
 }
 
 # Check dependencies
