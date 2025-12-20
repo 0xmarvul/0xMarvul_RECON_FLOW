@@ -23,38 +23,6 @@ START_TIME_EPOCH=$(date +%s)
 # Feature flags
 ENABLE_DIRSEARCH=false
 
-# Skip control variables
-skip_current=false
-current_pid=""
-exit_script=false
-
-# Trap handler for CTRL+C - Skip current tool
-trap_ctrlc() {
-    skip_current=true
-    if [ -n "$current_pid" ] && kill -0 "$current_pid" 2>/dev/null; then
-        kill -TERM "$current_pid" 2>/dev/null
-        wait "$current_pid" 2>/dev/null
-    fi
-    echo -e "\n${YELLOW}[!] Skipping current tool...${NC}"
-}
-
-# Trap handler for CTRL+Z - Exit entire script
-trap_ctrlz() {
-    exit_script=true
-    if [ -n "$current_pid" ] && kill -0 "$current_pid" 2>/dev/null; then
-        kill -TERM "$current_pid" 2>/dev/null
-        wait "$current_pid" 2>/dev/null
-    fi
-    echo -e "\n${RED}[!] Exiting 0xMarvul RECON FLOW...${NC}"
-    echo -e "${RED}[!] Partial results saved in $OUTPUT_DIR/${NC}"
-    send_discord_cancelled "$DOMAIN"
-    exit 1
-}
-
-# Set up traps
-trap trap_ctrlc SIGINT
-trap trap_ctrlz SIGTSTP
-
 # Banner function
 show_banner() {
     echo -e "${CYAN}"
@@ -111,50 +79,6 @@ print_step() {
     echo -e "\n${BOLD}${BLUE}═══════════════════════════════════════${NC}"
     echo -e "${BOLD}${BLUE}[STEP] $1${NC}"
     echo -e "${BOLD}${BLUE}═══════════════════════════════════════${NC}\n"
-}
-
-# Function to run a tool with skip support
-run_tool() {
-    local tool_name="$1"
-    shift
-    local command="$@"
-    
-    skip_current=false
-    
-    print_info "Running $tool_name... (CTRL+C to skip, CTRL+Z to exit)"
-    
-    # Run command in background and capture PID
-    # Note: eval is safe here as command strings are hardcoded in the script
-    eval "$command" &
-    current_pid=$!
-    
-    # Wait for the process
-    wait "$current_pid" 2>/dev/null
-    local exit_code=$?
-    current_pid=""
-    
-    # Check if we should exit the script
-    if [ "$exit_script" = true ]; then
-        echo -e "\n${RED}[!] Exiting 0xMarvul RECON FLOW...${NC}"
-        echo -e "${RED}[!] Partial results saved in $OUTPUT_DIR/${NC}"
-        send_discord_cancelled "$DOMAIN"
-        exit 1
-    fi
-    
-    # Check if we skipped
-    if [ "$skip_current" = true ]; then
-        print_warning "Skipped: $tool_name"
-        return 1
-    fi
-    
-    # Check exit code
-    if [ $exit_code -eq 0 ]; then
-        print_success "$tool_name completed"
-        return 0
-    else
-        print_error "$tool_name failed"
-        return 2
-    fi
 }
 
 # Function to get timestamp
@@ -273,18 +197,6 @@ send_discord_complete() {
     send_discord "✅ Recon Complete" "Finished scanning **$domain_escaped**" 65280 "$fields" "0xMarvul RECON FLOW"
 }
 
-# Send cancelled scan notification
-send_discord_cancelled() {
-    local domain="$1"
-    local domain_escaped="$(escape_json "$domain")"
-    
-    local fields='[
-      {"name": "📁 Partial Results", "value": "Saved in '"$domain_escaped"'/", "inline": true}
-    ]'
-    
-    send_discord "⏹️ Scan Cancelled" "Scan of **$domain_escaped** was manually stopped" 16776960 "$fields" "0xMarvul RECON FLOW"
-}
-
 # Send error notification
 send_discord_error() {
     local domain="$1"
@@ -354,10 +266,6 @@ usage() {
     echo -e "  ${CYAN}--webhook <url>${NC}    Use custom Discord webhook URL"
     echo -e "  ${CYAN}--no-notify${NC}        Disable Discord notifications"
     echo ""
-    echo -e "${BOLD}Controls:${NC}"
-    echo -e "  ${CYAN}CTRL+C${NC}            Skip current tool"
-    echo -e "  ${CYAN}CTRL+Z${NC}            Exit entire script"
-    echo ""
     echo -e "${BOLD}Examples:${NC}"
     echo -e "  ${CYAN}$0 target.com${NC}"
     echo -e "  ${CYAN}$0 target.com -dir${NC}"
@@ -403,11 +311,6 @@ main() {
     
     show_banner
     
-    echo -e "${BOLD}${YELLOW}Controls:${NC}"
-    echo -e "  ${CYAN}CTRL+C${NC} - Skip current tool"
-    echo -e "  ${CYAN}CTRL+Z${NC} - Exit entire script"
-    echo ""
-    
     # Check if domain is provided
     if [ -z "$DOMAIN" ]; then
         print_error "No domain provided!"
@@ -451,9 +354,11 @@ main() {
     
     # Subfinder
     if command -v subfinder &> /dev/null; then
-        if run_tool "Subfinder" "subfinder -d '$DOMAIN' -o subs_subfinder.txt 2>/dev/null"; then
-            : # Success
-        elif [ $? -eq 2 ]; then
+        print_info "Running Subfinder..."
+        if subfinder -d "$DOMAIN" -o subs_subfinder.txt 2>/dev/null; then
+            print_success "Subfinder completed"
+        else
+            print_error "Subfinder failed"
             failed_tools+=("subfinder")
             send_discord_error "$DOMAIN" "subfinder" "Command execution failed"
         fi
@@ -463,9 +368,11 @@ main() {
     
     # Assetfinder
     if command -v assetfinder &> /dev/null; then
-        if run_tool "Assetfinder" "assetfinder --subs-only '$DOMAIN' > subs_assetfinder.txt 2>/dev/null"; then
-            : # Success
-        elif [ $? -eq 2 ]; then
+        print_info "Running Assetfinder..."
+        if assetfinder --subs-only "$DOMAIN" > subs_assetfinder.txt 2>/dev/null; then
+            print_success "Assetfinder completed"
+        else
+            print_error "Assetfinder failed"
             failed_tools+=("assetfinder")
             send_discord_error "$DOMAIN" "assetfinder" "Command execution failed"
         fi
@@ -475,11 +382,15 @@ main() {
     
     # crt.sh
     if command -v curl &> /dev/null && command -v jq &> /dev/null; then
-        if run_tool "crt.sh" "timeout 30 curl -s 'https://crt.sh/?q=%25.$DOMAIN&output=json' | jq -r '.[].name_value' | sort -u > subs_crtsh.txt 2>/dev/null"; then
+        print_info "Running crt.sh..."
+        if timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN&output=json" | jq -r '.[].name_value' | sort -u > subs_crtsh.txt 2>/dev/null; then
             if [ ! -s subs_crtsh.txt ]; then
                 print_warning "crt.sh returned no results"
+            else
+                print_success "crt.sh completed"
             fi
-        elif [ $? -eq 2 ]; then
+        else
+            print_error "crt.sh failed"
             failed_tools+=("crt.sh")
             send_discord_error "$DOMAIN" "crt.sh" "Connection timeout"
         fi
@@ -489,11 +400,15 @@ main() {
     
     # Shrewdeye
     if command -v curl &> /dev/null; then
-        if run_tool "Shrewdeye" "timeout 30 curl -s 'https://shrewdeye.app/domains/$DOMAIN.txt' > subs_shrewdeye.txt 2>/dev/null"; then
+        print_info "Running Shrewdeye..."
+        if timeout 30 curl -s "https://shrewdeye.app/domains/$DOMAIN.txt" > subs_shrewdeye.txt 2>/dev/null; then
             if [ ! -s subs_shrewdeye.txt ]; then
                 print_warning "Shrewdeye returned no results"
+            else
+                print_success "Shrewdeye completed"
             fi
-        elif [ $? -eq 2 ]; then
+        else
+            print_error "Shrewdeye failed"
             failed_tools+=("shrewdeye")
             send_discord_error "$DOMAIN" "shrewdeye" "Connection failed"
         fi
@@ -519,14 +434,14 @@ main() {
     print_info "Timestamp: $(get_timestamp)"
     
     if [ -s all_subs.txt ] && command -v httpx &> /dev/null; then
-        if run_tool "httpx" "cat all_subs.txt | httpx -silent -o live_hosts.txt 2>/dev/null"; then
+        print_info "Running httpx..."
+        if cat all_subs.txt | httpx -silent -o live_hosts.txt 2>/dev/null; then
             live_hosts=$(wc -l < live_hosts.txt 2>/dev/null || echo 0)
-            print_success "Live hosts found: $live_hosts"
-        elif [ $? -eq 2 ]; then
+            print_success "httpx completed - Live hosts found: $live_hosts"
+        else
+            print_error "httpx failed"
             failed_tools+=("httpx")
             send_discord_error "$DOMAIN" "httpx" "Command execution failed"
-            live_hosts=0
-        else
             live_hosts=0
         fi
     else
@@ -540,15 +455,20 @@ main() {
     
     technologies="N/A"
     if [ -s live_hosts.txt ] && command -v httpx &> /dev/null; then
-        if run_tool "Tech Detection" "cat live_hosts.txt | httpx -tech-detect -silent -o tech_detect.txt 2>/dev/null"; then
+        print_info "Running Tech Detection..."
+        if cat live_hosts.txt | httpx -tech-detect -silent -o tech_detect.txt 2>/dev/null; then
             if [ -s tech_detect.txt ]; then
                 technologies=$(grep -oP '\[.*?\]' tech_detect.txt 2>/dev/null | tr -d '[]' | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g' | head -c 200)
                 if [ -z "$technologies" ]; then
                     technologies="N/A"
                 fi
+                print_success "Tech Detection completed"
                 print_info "Technologies detected: $technologies"
+            else
+                print_success "Tech Detection completed"
             fi
-        elif [ $? -eq 2 ]; then
+        else
+            print_error "Tech Detection failed"
             failed_tools+=("tech-detect")
             send_discord_error "$DOMAIN" "tech-detect" "Command execution failed"
         fi
@@ -567,9 +487,12 @@ main() {
     if [ -s live_hosts.txt ]; then
         # Gospider
         if command -v gospider &> /dev/null; then
-            if run_tool "Gospider" "gospider -S live_hosts.txt -o gospider_output --quiet 2>/dev/null"; then
+            print_info "Running Gospider..."
+            if gospider -S live_hosts.txt -o gospider_output --quiet 2>/dev/null; then
+                print_success "Gospider completed"
                 print_info "Gospider output saved in gospider_output/ directory"
-            elif [ $? -eq 2 ]; then
+            else
+                print_error "Gospider failed"
                 failed_tools+=("gospider")
                 send_discord_error "$DOMAIN" "gospider" "Command execution failed"
             fi
@@ -579,9 +502,11 @@ main() {
         
         # Waybackurls
         if command -v waybackurls &> /dev/null; then
-            if run_tool "Waybackurls" "cat live_hosts.txt | waybackurls > wayback.txt 2>/dev/null"; then
-                : # Success
-            elif [ $? -eq 2 ]; then
+            print_info "Running Waybackurls..."
+            if cat live_hosts.txt | waybackurls > wayback.txt 2>/dev/null; then
+                print_success "Waybackurls completed"
+            else
+                print_error "Waybackurls failed"
                 failed_tools+=("waybackurls")
                 send_discord_error "$DOMAIN" "waybackurls" "Command execution failed"
             fi
@@ -591,9 +516,11 @@ main() {
         
         # Katana
         if command -v katana &> /dev/null; then
-            if run_tool "Katana" "katana -list live_hosts.txt -o katana.txt -silent 2>/dev/null"; then
-                : # Success
-            elif [ $? -eq 2 ]; then
+            print_info "Running Katana..."
+            if katana -list live_hosts.txt -o katana.txt -silent 2>/dev/null; then
+                print_success "Katana completed"
+            else
+                print_error "Katana failed"
                 failed_tools+=("katana")
                 send_discord_error "$DOMAIN" "katana" "Command execution failed"
             fi
@@ -624,12 +551,16 @@ main() {
     
     param_count=0
     if command -v paramspider &> /dev/null; then
-        if run_tool "ParamSpider" "paramspider -d '$DOMAIN' -o params.txt 2>/dev/null"; then
+        print_info "Running ParamSpider..."
+        if paramspider -d "$DOMAIN" -o params.txt 2>/dev/null; then
             if [ -f params.txt ]; then
                 param_count=$(wc -l < params.txt 2>/dev/null || echo 0)
-                print_success "Parameters found: $param_count"
+                print_success "ParamSpider completed - Parameters found: $param_count"
+            else
+                print_success "ParamSpider completed"
             fi
-        elif [ $? -eq 2 ]; then
+        else
+            print_error "ParamSpider failed"
             failed_tools+=("paramspider")
             send_discord_error "$DOMAIN" "paramspider" "Command execution failed"
         fi
@@ -676,6 +607,7 @@ main() {
         print_info "Timestamp: $(get_timestamp)"
         
         if [ -s live_hosts.txt ] && command -v dirsearch &> /dev/null; then
+            print_info "Running Dirsearch..."
             if [ -f ~/Desktop/WORDLIST/ULTRA_MEGA.txt ]; then
                 dirsearch_cmd="dirsearch -l live_hosts.txt -o mar0xwan.txt -w ~/Desktop/WORDLIST/ULTRA_MEGA.txt -i 200 -e conf,config,bak,backup,swp,old,db,sql,asp,aspx,aspx,asp~,py,py~,rb,rb~,php,php~,bak,bkp,cache,cgi,conf,csv,html,inc,jar,js,json,jsp,jsp~,lock,log,rar,old,sql,sql.gz,http://sql.zip,sql.tar.gz,sql~,swp,swp~,tar,tar.bz2,tar.gz,txt,wadl,zip,.log,.xml,.js.,.json 2>/dev/null"
             else
@@ -683,12 +615,14 @@ main() {
                 dirsearch_cmd="dirsearch -l live_hosts.txt -o mar0xwan.txt -i 200 2>/dev/null"
             fi
             
-            if run_tool "Dirsearch" "$dirsearch_cmd"; then
+            if eval "$dirsearch_cmd"; then
+                print_success "Dirsearch completed"
                 if [ -f mar0xwan.txt ]; then
                     dirsearch_count=$(grep -c "200" mar0xwan.txt 2>/dev/null || echo 0)
-                    print_success "Dirsearch findings (200 status): $dirsearch_count"
+                    print_info "Dirsearch findings (200 status): $dirsearch_count"
                 fi
-            elif [ $? -eq 2 ]; then
+            else
+                print_error "Dirsearch failed"
                 failed_tools+=("dirsearch")
                 send_discord_error "$DOMAIN" "dirsearch" "Command execution failed"
             fi
