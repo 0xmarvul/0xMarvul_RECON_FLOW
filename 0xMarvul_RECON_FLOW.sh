@@ -371,6 +371,9 @@ main() {
         esac
     done
     
+    # Clear terminal before starting scan
+    clear
+    
     show_banner
     
     # Check if domain is provided
@@ -798,16 +801,11 @@ main() {
         if [ -s javascript.txt ] && command -v secretfinder &> /dev/null; then
             print_info "Running SecretFinder on JavaScript files..."
             
-            # Create secrets output directory
-            mkdir -p secrets_output
+            # Run secretfinder with direct file input (much faster than looping)
+            secretfinder -i javascript.txt -o cli > secrets_found.txt 2>/dev/null
             
-            # Run secretfinder on each JS file
-            while IFS= read -r js_url; do
-                secretfinder -i "$js_url" -o cli >> secrets_output/secrets_found.txt 2>/dev/null
-            done < javascript.txt
-            
-            if [ -s secrets_output/secrets_found.txt ]; then
-                secret_count=$(wc -l < secrets_output/secrets_found.txt 2>/dev/null || echo 0)
+            if [ -s secrets_found.txt ]; then
+                secret_count=$(wc -l < secrets_found.txt 2>/dev/null || echo 0)
                 print_success "SecretFinder completed - Found $secret_count potential secrets"
             else
                 print_warning "SecretFinder completed - No secrets found"
@@ -879,7 +877,7 @@ main() {
         echo -e "  ${CYAN}►${NC} ${BOLD}takeover_results.txt${NC} - Subdomain takeover check results from Subzy"
     fi
     if [ "$ENABLE_SECRETFINDER" = true ]; then
-        echo -e "  ${CYAN}►${NC} ${BOLD}secrets_output/${NC} - Directory containing secrets found in JavaScript files"
+        echo -e "  ${CYAN}►${NC} ${BOLD}secrets_found.txt${NC} - Secrets found in JavaScript files"
     fi
     if [ "$ENABLE_DIRSEARCH" = true ]; then
         echo -e "  ${CYAN}►${NC} ${BOLD}mar0xwan.txt${NC} - Directory bruteforce results from Dirsearch"
