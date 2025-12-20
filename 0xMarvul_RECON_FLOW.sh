@@ -1028,7 +1028,7 @@ main() {
                             if command -v nmap &> /dev/null; then
                                 print_info "Running Nmap for detailed service detection..."
                                 # Extract unique ports and format for nmap
-                                port_list=$(cat open_ports.txt | cut -d':' -f2 | sort -u | tr '\n' ',' | sed 's/,$//')
+                                port_list=$(cut -d':' -f2 open_ports.txt | sort -u | tr '\n' ',' | sed 's/,$//')
                                 if [ -n "$port_list" ]; then
                                     if nmap -iL ips.txt -p "$port_list" -sV -oN ports_detailed.txt 2>/dev/null; then
                                         print_success "Nmap completed - Detailed results saved to ports_detailed.txt"
@@ -1476,10 +1476,13 @@ $(grep -c '\.json' allurls.txt 2>/dev/null || echo 0)
 $(wc -l < params.txt 2>/dev/null || echo 0)"
 
         # Add optional sections only if they were enabled
-        if [ "$ENABLE_DIRSEARCH" = true ] && [ -n "${dirsearch_count:-}" ] && [ "$dirsearch_count" -gt 0 ]; then
-            discord_msg="${discord_msg}
+        if [ "$ENABLE_DIRSEARCH" = true ]; then
+            local dirsearch_count_local=$(grep -c "200" mar0xwan.txt 2>/dev/null || echo 0)
+            if [ "$dirsearch_count_local" -gt 0 ]; then
+                discord_msg="${discord_msg}
 📁 Dirsearch
-${dirsearch_count} found"
+${dirsearch_count_local} found"
+            fi
         fi
         
         if [ "$ENABLE_PORT_SCAN" = true ] && [ -n "$port_count" ] && [ "$port_count" -gt 0 ]; then
