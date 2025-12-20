@@ -268,6 +268,8 @@ The script includes a default Discord webhook URL. If you're using this tool for
 - Either pass it via `--webhook` flag each time, or
 - Edit the `DISCORD_WEBHOOK` variable in the script to use your webhook by default
 
+**Security Note**: For production use, consider storing the webhook URL in an environment variable or external configuration file rather than hardcoding it in the script to prevent accidental exposure in version control.
+
 ## 🎨 Color Coding
 
 The tool uses color-coded output for better readability:

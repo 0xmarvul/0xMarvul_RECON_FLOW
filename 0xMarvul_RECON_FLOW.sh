@@ -91,8 +91,8 @@ get_iso_timestamp() {
 # Function to escape JSON strings
 escape_json() {
     local str="$1"
-    # Escape backslashes, quotes, newlines, tabs, and other control characters
-    echo "$str" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | tr '\n' ' '
+    # Escape backslashes, quotes, newlines, tabs, carriage returns, and form feeds
+    echo "$str" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/\r/\\r/g; s/\f/\\f/g'
 }
 
 # Function to send Discord notification
@@ -132,15 +132,17 @@ EOF
 
 # Send scan start notification
 send_discord_start() {
-    local domain="$(escape_json "$1")"
-    local timestamp="$(escape_json "$2")"
+    local domain="$1"
+    local timestamp="$2"
+    local domain_escaped="$(escape_json "$domain")"
+    local timestamp_escaped="$(escape_json "$timestamp")"
     
     local fields='[
-      {"name": "🎯 Target", "value": "'"$domain"'", "inline": true},
-      {"name": "⏰ Started", "value": "'"$timestamp"'", "inline": true}
+      {"name": "🎯 Target", "value": "'"$domain_escaped"'", "inline": true},
+      {"name": "⏰ Started", "value": "'"$timestamp_escaped"'", "inline": true}
     ]'
     
-    send_discord "🚀 Scan Started" "Starting reconnaissance on **$1**" 255 "$fields" "0xMarvul RECON FLOW"
+    send_discord "🚀 Scan Started" "Starting reconnaissance on **$domain_escaped**" 255 "$fields" "0xMarvul RECON FLOW"
 }
 
 # Send scan completion notification
@@ -161,6 +163,9 @@ send_discord_complete() {
     local duration_sec=$((duration % 60))
     local duration_str="${duration_min}m ${duration_sec}s"
     
+    local domain_escaped="$(escape_json "$domain")"
+    local duration_escaped="$(escape_json "$duration_str")"
+    
     local fields='[
       {"name": "📍 Subdomains", "value": "'"$total_subs"'", "inline": true},
       {"name": "🌐 Live Hosts", "value": "'"$live_hosts"'", "inline": true},
@@ -169,24 +174,27 @@ send_discord_complete() {
       {"name": "🐘 PHP Files", "value": "'"$php_count"'", "inline": true},
       {"name": "📋 JSON Files", "value": "'"$json_count"'", "inline": true},
       {"name": "🔴 BIGRAC", "value": "'"$bigrac_count"'", "inline": true},
-      {"name": "⏱️ Duration", "value": "'"$duration_str"'", "inline": true}
+      {"name": "⏱️ Duration", "value": "'"$duration_escaped"'", "inline": true}
     ]'
     
-    send_discord "✅ Recon Complete" "Finished scanning **$domain**" 65280 "$fields" "0xMarvul RECON FLOW"
+    send_discord "✅ Recon Complete" "Finished scanning **$domain_escaped**" 65280 "$fields" "0xMarvul RECON FLOW"
 }
 
 # Send error notification
 send_discord_error() {
-    local domain="$(escape_json "$1")"
-    local tool_name="$(escape_json "$2")"
-    local error_msg="$(escape_json "$3")"
+    local domain="$1"
+    local tool_name="$2"
+    local error_msg="$3"
+    local domain_escaped="$(escape_json "$domain")"
+    local tool_escaped="$(escape_json "$tool_name")"
+    local error_escaped="$(escape_json "$error_msg")"
     
     local fields='[
-      {"name": "🔧 Tool", "value": "'"$tool_name"'", "inline": true},
-      {"name": "❌ Error", "value": "'"$error_msg"'", "inline": true}
+      {"name": "🔧 Tool", "value": "'"$tool_escaped"'", "inline": true},
+      {"name": "❌ Error", "value": "'"$error_escaped"'", "inline": true}
     ]'
     
-    send_discord "⚠️ Tool Error" "An error occurred during scan of **$1**" 16711680 "$fields" "Scan will continue with other tools"
+    send_discord "⚠️ Tool Error" "An error occurred during scan of **$domain_escaped**" 16711680 "$fields" "Scan will continue with other tools"
 }
 
 # Check dependencies
