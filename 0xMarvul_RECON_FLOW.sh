@@ -15,6 +15,11 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
+# Discord Webhook Configuration
+DISCORD_WEBHOOK="https://discord.com/api/webhooks/1451940045475807315/-6ecZ9WRgnY5GS-5iJ_BC0Cdus9L35BpBbIjsYRldmeQvOWYouGbddeTXJvWYKPQz5tg"
+NOTIFY_ENABLED=true
+START_TIME_EPOCH=$(date +%s)
+
 # Banner function
 show_banner() {
     echo -e "${CYAN}"
@@ -42,6 +47,11 @@ show_banner() {
 EOF
     echo -e "${BOLD}${GREEN}    [ 0xMarvul RECON FLOW - v1.0 ]${NC}"
     echo -e "${CYAN}    Automated Reconnaissance Tool for Bug Bounty${NC}"
+    if [ "$NOTIFY_ENABLED" = true ]; then
+        echo -e "${GREEN}    🔔 Discord Notifications: Enabled${NC}"
+    else
+        echo -e "${YELLOW}    🔕 Discord Notifications: Disabled${NC}"
+    fi
     echo -e "${CYAN}    ===========================================${NC}\n"
 }
 
@@ -73,6 +83,120 @@ get_timestamp() {
     date '+%Y-%m-%d %H:%M:%S'
 }
 
+# Function to get ISO 8601 timestamp for Discord
+get_iso_timestamp() {
+    date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+# Function to escape JSON strings
+escape_json() {
+    local str="$1"
+    # Escape backslashes, quotes, newlines, tabs, carriage returns, and form feeds
+    echo "$str" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\t/\\t/g' | sed ':a;N;$!ba;s/\n/\\n/g' | sed 's/\r/\\r/g; s/\f/\\f/g'
+}
+
+# Function to send Discord notification
+send_discord() {
+    if [ "$NOTIFY_ENABLED" = false ]; then
+        return 0
+    fi
+    
+    if [ -z "$DISCORD_WEBHOOK" ]; then
+        return 0
+    fi
+    
+    local title="$(escape_json "$1")"
+    local description="$(escape_json "$2")"
+    local color="$3"
+    local fields="$4"
+    local footer="$(escape_json "$5")"
+    
+    # Build JSON payload
+    local json_payload=$(cat <<EOF
+{
+  "embeds": [{
+    "title": "$title",
+    "description": "$description",
+    "color": $color,
+    "fields": $fields,
+    "footer": {"text": "$footer"},
+    "timestamp": "$(get_iso_timestamp)"
+  }]
+}
+EOF
+)
+    
+    # Send to Discord webhook
+    curl -s -H "Content-Type: application/json" -X POST -d "$json_payload" "$DISCORD_WEBHOOK" > /dev/null 2>&1
+}
+
+# Send scan start notification
+send_discord_start() {
+    local domain="$1"
+    local timestamp="$2"
+    local domain_escaped="$(escape_json "$domain")"
+    local timestamp_escaped="$(escape_json "$timestamp")"
+    
+    local fields='[
+      {"name": "🎯 Target", "value": "'"$domain_escaped"'", "inline": true},
+      {"name": "⏰ Started", "value": "'"$timestamp_escaped"'", "inline": true}
+    ]'
+    
+    send_discord "🚀 Scan Started" "Starting reconnaissance on **$domain_escaped**" 255 "$fields" "0xMarvul RECON FLOW"
+}
+
+# Send scan completion notification
+send_discord_complete() {
+    local domain="$1"
+    local total_subs="${2:-0}"
+    local live_hosts="${3:-0}"
+    local total_urls="${4:-0}"
+    local js_count="${5:-0}"
+    local php_count="${6:-0}"
+    local json_count="${7:-0}"
+    local bigrac_count="${8:-0}"
+    
+    # Calculate duration
+    local end_time_epoch=$(date +%s)
+    local duration=$((end_time_epoch - START_TIME_EPOCH))
+    local duration_min=$((duration / 60))
+    local duration_sec=$((duration % 60))
+    local duration_str="${duration_min}m ${duration_sec}s"
+    
+    local domain_escaped="$(escape_json "$domain")"
+    local duration_escaped="$(escape_json "$duration_str")"
+    
+    local fields='[
+      {"name": "📍 Subdomains", "value": "'"$total_subs"'", "inline": true},
+      {"name": "🌐 Live Hosts", "value": "'"$live_hosts"'", "inline": true},
+      {"name": "🔗 Total URLs", "value": "'"$total_urls"'", "inline": true},
+      {"name": "📜 JavaScript", "value": "'"$js_count"'", "inline": true},
+      {"name": "🐘 PHP Files", "value": "'"$php_count"'", "inline": true},
+      {"name": "📋 JSON Files", "value": "'"$json_count"'", "inline": true},
+      {"name": "🔴 BIGRAC", "value": "'"$bigrac_count"'", "inline": true},
+      {"name": "⏱️ Duration", "value": "'"$duration_escaped"'", "inline": true}
+    ]'
+    
+    send_discord "✅ Recon Complete" "Finished scanning **$domain_escaped**" 65280 "$fields" "0xMarvul RECON FLOW"
+}
+
+# Send error notification
+send_discord_error() {
+    local domain="$1"
+    local tool_name="$2"
+    local error_msg="$3"
+    local domain_escaped="$(escape_json "$domain")"
+    local tool_escaped="$(escape_json "$tool_name")"
+    local error_escaped="$(escape_json "$error_msg")"
+    
+    local fields='[
+      {"name": "🔧 Tool", "value": "'"$tool_escaped"'", "inline": true},
+      {"name": "❌ Error", "value": "'"$error_escaped"'", "inline": true}
+    ]'
+    
+    send_discord "⚠️ Tool Error" "An error occurred during scan of **$domain_escaped**" 16711680 "$fields" "Scan will continue with other tools"
+}
+
 # Check dependencies
 check_dependencies() {
     print_step "Checking Dependencies"
@@ -101,26 +225,62 @@ check_dependencies() {
 
 # Usage function
 usage() {
-    echo -e "${YELLOW}Usage: $0 <domain>${NC}"
+    echo -e "${YELLOW}Usage: $0 <domain> [options]${NC}"
     echo -e "${CYAN}Example: $0 target.com${NC}"
+    echo ""
+    echo -e "${BOLD}Options:${NC}"
+    echo -e "  ${CYAN}--webhook <url>${NC}    Override default Discord webhook URL"
+    echo -e "  ${CYAN}--no-notify${NC}        Disable Discord notifications"
+    echo ""
     exit 1
 }
 
 # Main execution
 main() {
+    # Parse command line arguments
+    DOMAIN=""
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --webhook)
+                DISCORD_WEBHOOK="$2"
+                shift 2
+                ;;
+            --no-notify)
+                NOTIFY_ENABLED=false
+                shift
+                ;;
+            -h|--help)
+                show_banner
+                usage
+                ;;
+            *)
+                if [ -z "$DOMAIN" ]; then
+                    DOMAIN="$1"
+                else
+                    echo -e "${RED}Error: Unknown argument '$1'${NC}"
+                    usage
+                fi
+                shift
+                ;;
+        esac
+    done
+    
     show_banner
     
     # Check if domain is provided
-    if [ $# -eq 0 ]; then
+    if [ -z "$DOMAIN" ]; then
         print_error "No domain provided!"
         usage
     fi
     
-    DOMAIN=$1
     OUTPUT_DIR="$DOMAIN"
     
     print_info "Target Domain: ${BOLD}$DOMAIN${NC}"
     print_info "Start Time: $(get_timestamp)"
+    
+    # Send start notification
+    send_discord_start "$DOMAIN" "$(get_timestamp)"
     
     # Check dependencies
     check_dependencies
@@ -157,6 +317,7 @@ main() {
         else
             print_error "Subfinder failed"
             failed_tools+=("subfinder")
+            send_discord_error "$DOMAIN" "subfinder" "Command execution failed"
         fi
     else
         print_warning "Subfinder not installed, skipping..."
@@ -170,6 +331,7 @@ main() {
         else
             print_error "Assetfinder failed"
             failed_tools+=("assetfinder")
+            send_discord_error "$DOMAIN" "assetfinder" "Command execution failed"
         fi
     else
         print_warning "Assetfinder not installed, skipping..."
@@ -184,10 +346,12 @@ main() {
             else
                 print_error "crt.sh returned no results or timed out"
                 failed_tools+=("crt.sh")
+                send_discord_error "$DOMAIN" "crt.sh" "No results or timeout"
             fi
         else
             print_error "crt.sh query failed or timed out"
             failed_tools+=("crt.sh")
+            send_discord_error "$DOMAIN" "crt.sh" "Connection timeout"
         fi
     else
         print_warning "curl or jq not installed, skipping crt.sh..."
@@ -205,6 +369,7 @@ main() {
         else
             print_error "Shrewdeye query failed"
             failed_tools+=("shrewdeye")
+            send_discord_error "$DOMAIN" "shrewdeye" "Connection failed"
         fi
     else
         print_warning "curl not installed, skipping Shrewdeye..."
@@ -235,6 +400,7 @@ main() {
         else
             print_error "httpx failed"
             failed_tools+=("httpx")
+            send_discord_error "$DOMAIN" "httpx" "Command execution failed"
             live_hosts=0
         fi
     else
@@ -260,6 +426,7 @@ main() {
             else
                 print_error "Gospider failed"
                 failed_tools+=("gospider")
+                send_discord_error "$DOMAIN" "gospider" "Command execution failed"
             fi
         else
             print_warning "Gospider not installed, skipping..."
@@ -273,6 +440,7 @@ main() {
             else
                 print_error "Waybackurls failed"
                 failed_tools+=("waybackurls")
+                send_discord_error "$DOMAIN" "waybackurls" "Command execution failed"
             fi
         else
             print_warning "Waybackurls not installed, skipping..."
@@ -286,6 +454,7 @@ main() {
             else
                 print_error "Katana failed"
                 failed_tools+=("katana")
+                send_discord_error "$DOMAIN" "katana" "Command execution failed"
             fi
         else
             print_warning "Katana not installed, skipping..."
@@ -388,6 +557,9 @@ main() {
         done
         echo ""
     fi
+    
+    # Send completion notification to Discord
+    send_discord_complete "$DOMAIN" "${total_subs:-0}" "${live_hosts:-0}" "${total_urls:-0}" "${js_count:-0}" "${php_count:-0}" "${json_count:-0}" "${bigrac_count:-0}"
     
     print_success "Reconnaissance completed!"
     echo -e "${CYAN}All output files saved in: ${BOLD}$OUTPUT_DIR/${NC}\n"

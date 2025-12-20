@@ -11,6 +11,7 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 - **URL Discovery**: Gathers URLs from multiple sources (Gospider, Waybackurls, Katana)
 - **Smart Filtering**: Automatically categorizes JavaScript, PHP, JSON, and sensitive files
 - **BIGRAC Detection**: Identifies sensitive files like Swagger docs, API endpoints, config files, credentials, etc.
+- **Discord Notifications**: Real-time notifications via Discord webhooks (enabled by default)
 - **Error Handling**: Continues execution even if some tools fail or timeout
 - **Color-Coded Output**: Easy-to-read terminal output with status indicators
 - **Progress Tracking**: Real-time progress updates with timestamps
@@ -121,12 +122,27 @@ Example:
 ./0xMarvul_RECON_FLOW.sh example.com
 ```
 
+### Command Line Options
+
+**Custom Discord Webhook:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com --webhook "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"
+```
+
+**Disable Discord Notifications:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com --no-notify
+```
+
 The script will:
 1. Check for required dependencies
-2. Create an output directory named after the target domain
-3. Perform reconnaissance across multiple phases
-4. Save all results in organized files
-5. Display a comprehensive summary
+2. Send a scan start notification to Discord (if enabled)
+3. Create an output directory named after the target domain
+4. Perform reconnaissance across multiple phases
+5. Send error notifications if any tools fail
+6. Save all results in organized files
+7. Send a completion notification with full statistics
+8. Display a comprehensive summary
 
 ## 📁 Output Structure
 
@@ -149,6 +165,110 @@ target.com/
 ├── json.txt                    # JSON file URLs
 └── BIGRAC.txt                  # Sensitive files (configs, APIs, credentials, etc.)
 ```
+
+## 🔔 Discord Notifications
+
+0xMarvul RECON FLOW includes real-time Discord webhook integration to keep you updated on scan progress.
+
+### How It Works
+
+Discord notifications are **enabled by default** and will send three types of messages:
+
+#### 1. 🚀 Scan Started Notification
+Sent when the scan begins, showing:
+- Target domain being scanned
+- Timestamp when scan started
+
+#### 2. ✅ Scan Completed Notification
+Sent when the scan finishes successfully, showing:
+- Target domain
+- Total subdomains found
+- Live hosts discovered
+- Total URLs collected
+- JavaScript files found
+- PHP files found
+- JSON files found
+- Sensitive files (BIGRAC) found
+- Total scan duration
+
+#### 3. ⚠️ Error Notifications
+Sent whenever a tool fails or times out, showing:
+- Which tool encountered an error
+- Error message or reason
+- Note that the scan continues with other tools
+
+### Discord Message Examples
+
+**Scan Started:**
+```
+🚀 Scan Started
+Starting reconnaissance on **target.com**
+
+🎯 Target: target.com
+⏰ Started: 2025-12-20 14:30:00
+```
+
+**Scan Completed:**
+```
+✅ Recon Complete
+Finished scanning **target.com**
+
+📍 Subdomains: 150
+🌐 Live Hosts: 45
+🔗 Total URLs: 3420
+📜 JavaScript: 89
+🐘 PHP Files: 234
+📋 JSON Files: 56
+🔴 BIGRAC: 12
+⏱️ Duration: 5m 32s
+```
+
+**Tool Error:**
+```
+⚠️ Tool Error
+An error occurred during scan of **target.com**
+
+🔧 Tool: crt.sh
+❌ Error: Connection timeout
+
+Scan will continue with other tools
+```
+
+### Using Discord Notifications
+
+**Default Usage (notifications enabled):**
+```bash
+./0xMarvul_RECON_FLOW.sh target.com
+```
+
+**Custom Webhook URL:**
+If you want to use your own Discord webhook:
+```bash
+./0xMarvul_RECON_FLOW.sh target.com --webhook "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+```
+
+**Disable Notifications:**
+If you don't want Discord notifications for a specific scan:
+```bash
+./0xMarvul_RECON_FLOW.sh target.com --no-notify
+```
+
+### Setting Up Your Own Discord Webhook
+
+1. Open your Discord server and go to **Server Settings**
+2. Navigate to **Integrations** → **Webhooks**
+3. Click **New Webhook** or edit an existing one
+4. Copy the **Webhook URL**
+5. Use it with the `--webhook` flag or replace the default URL in the script
+
+### Default Webhook
+
+The script includes a default Discord webhook URL. If you're using this tool for your own purposes, you should:
+- Create your own Discord webhook
+- Either pass it via `--webhook` flag each time, or
+- Edit the `DISCORD_WEBHOOK` variable in the script to use your webhook by default
+
+**Security Note**: For production use, consider storing the webhook URL in an environment variable or external configuration file rather than hardcoding it in the script to prevent accidental exposure in version control.
 
 ## 🎨 Color Coding
 
