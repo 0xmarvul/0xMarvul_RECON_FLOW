@@ -14,7 +14,6 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 - **Directory Bruteforce**: Optional directory and file discovery with Dirsearch (use `-dir` flag)
 - **Smart Filtering**: Automatically categorizes JavaScript, PHP, JSON, and sensitive files
 - **BIGRAC Detection**: Identifies sensitive files like Swagger docs, API endpoints, config files, credentials, etc.
-- **Keyboard Controls**: Skip tools with CTRL+C, exit entire script with CTRL+Z
 - **Discord Notifications**: Real-time notifications via Discord webhooks (enabled by default)
 - **Error Handling**: Continues execution even if some tools fail or timeout
 - **Color-Coded Output**: Easy-to-read terminal output with status indicators
@@ -142,11 +141,6 @@ Basic usage:
 - `--webhook <url>` - Use custom Discord webhook URL
 - `--no-notify` - Disable Discord notifications
 
-### Keyboard Controls
-
-- **CTRL+C** - Skip current tool and continue to the next one
-- **CTRL+Z** - Exit entire script immediately
-
 ### Examples
 
 **Basic reconnaissance:**
@@ -185,28 +179,6 @@ The script will:
 6. Save all results in organized files
 7. Send a completion notification with full statistics
 8. Display a comprehensive summary
-
-### Keyboard Controls During Execution
-
-While the tool is running, you can use keyboard shortcuts to control execution:
-
-**Skip Current Tool (CTRL+C):**
-```
-[*] Running Subfinder... (CTRL+C to skip, CTRL+Z to exit)
-^C
-[!] Skipping current tool...
-[!] Skipped: Subfinder
-[*] Running Assetfinder... (CTRL+C to skip, CTRL+Z to exit)
-```
-
-**Exit Entire Script (CTRL+Z):**
-```
-[*] Running Katana... (CTRL+C to skip, CTRL+Z to exit)
-^Z
-[!] Exiting 0xMarvul RECON FLOW...
-[!] Partial results saved in target.com/
-```
-A Discord notification will be sent about the early exit.
 
 ## 📁 Output Structure
 
@@ -302,14 +274,6 @@ An error occurred during scan of **target.com**
 ❌ Error: Connection timeout
 
 Scan will continue with other tools
-```
-
-**Scan Cancelled (CTRL+Z):**
-```
-⏹️ Scan Cancelled
-Scan of **target.com** was manually stopped
-
-📁 Partial Results: Saved in target.com/
 ```
 
 ### Using Discord Notifications
