@@ -8,10 +8,12 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 
 - **Automated Subdomain Enumeration**: Uses multiple sources (Subfinder, Assetfinder, crt.sh, Shrewdeye)
 - **Live Host Detection**: Identifies active web servers using httpx
+- **Subdomain Takeover Check**: Optional check for subdomain takeover vulnerabilities with Subzy (use `-takeover` flag)
 - **Technology Detection**: Detects web technologies, CMS, frameworks, and servers
 - **URL Discovery**: Gathers URLs from multiple sources (Gospider, Waybackurls, Katana)
 - **Parameter Discovery**: Discovers URL parameters using ParamSpider
 - **Directory Bruteforce**: Optional directory and file discovery with Dirsearch (use `-dir` flag)
+- **Secret Finding**: Optional secret discovery in JavaScript files with SecretFinder (use `-secret` flag)
 - **Smart Filtering**: Automatically categorizes JavaScript, PHP, JSON, and sensitive files
 - **BIGRAC Detection**: Identifies sensitive files like Swagger docs, API endpoints, config files, credentials, etc.
 - **Discord Notifications**: Real-time notifications via Discord webhooks (enabled by default)
@@ -89,6 +91,22 @@ This tool requires several external security tools to be installed. Below are th
     pip install dirsearch
     ```
 
+11. **SecretFinder** - Find secrets in JavaScript files (only needed if using `-secret` flag)
+    ```bash
+    # Clone and install
+    git clone https://github.com/m4ll0k/SecretFinder.git
+    cd SecretFinder
+    pip install -r requirements.txt
+    # Make it accessible in PATH
+    sudo ln -s $(pwd)/SecretFinder.py /usr/local/bin/secretfinder
+    sudo chmod +x /usr/local/bin/secretfinder
+    ```
+
+12. **Subzy** - Subdomain takeover vulnerability checker (only needed if using `-takeover` flag)
+    ```bash
+    go install -v github.com/LukaSikic/subzy@latest
+    ```
+
 ### Quick Installation (All Go Tools)
 
 If you have Go installed, you can install all Go-based tools at once:
@@ -101,9 +119,18 @@ go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
 go install github.com/jaeles-project/gospider@latest
 go install github.com/tomnomnom/waybackurls@latest
 go install github.com/projectdiscovery/katana/cmd/katana@latest
+go install -v github.com/LukaSikic/subzy@latest
 
 # Install Python tools
 pip install paramspider dirsearch
+
+# Install SecretFinder
+git clone https://github.com/m4ll0k/SecretFinder.git
+cd SecretFinder
+pip install -r requirements.txt
+sudo ln -s $(pwd)/SecretFinder.py /usr/local/bin/secretfinder
+sudo chmod +x /usr/local/bin/secretfinder
+cd ..
 
 # Make sure Go binaries are in your PATH
 export PATH=$PATH:$(go env GOPATH)/bin
@@ -138,6 +165,8 @@ Basic usage:
 ### Options
 
 - `-dir` - Enable directory bruteforce with dirsearch
+- `-secret` - Enable secret finding in JavaScript files with SecretFinder
+- `-takeover` - Enable subdomain takeover check with Subzy
 - `--webhook <url>` - Use custom Discord webhook URL
 - `--no-notify` - Disable Discord notifications
 
@@ -151,6 +180,21 @@ Basic usage:
 **With directory bruteforce:**
 ```bash
 ./0xMarvul_RECON_FLOW.sh example.com -dir
+```
+
+**With secret finding:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -secret
+```
+
+**With subdomain takeover check:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -takeover
+```
+
+**With all optional features:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -dir -secret -takeover
 ```
 
 **Custom webhook without notifications:**
@@ -170,11 +214,13 @@ The script will:
 4. Perform reconnaissance across multiple phases:
    - Subdomain enumeration
    - Live host detection
+   - Subdomain takeover check (if `-takeover` flag used)
    - Technology detection
    - URL gathering
    - Parameter discovery
-   - Directory bruteforce (if `-dir` flag used)
    - File type filtering
+   - Directory bruteforce (if `-dir` flag used)
+   - Secret finding (if `-secret` flag used)
 5. Send error notifications if any tools fail
 6. Save all results in organized files
 7. Send a completion notification with full statistics
@@ -192,6 +238,7 @@ target.com/
 ├── subs_shrewdeye.txt          # Subdomains from Shrewdeye
 ├── all_subs.txt                # All unique subdomains combined
 ├── live_hosts.txt              # Active/responsive web servers
+├── takeover_results.txt        # Subdomain takeover check results (only if -takeover flag used)
 ├── tech_detect.txt             # Detected technologies (CMS, frameworks, servers)
 ├── gospider_output/            # Directory containing Gospider results
 ├── wayback.txt                 # Historical URLs from Wayback Machine
@@ -202,6 +249,8 @@ target.com/
 ├── php.txt                     # PHP file URLs
 ├── json.txt                    # JSON file URLs
 ├── BIGRAC.txt                  # Sensitive files (configs, APIs, credentials, etc.)
+├── secrets_output/             # Directory containing secrets found in JS files (only if -secret flag used)
+│   └── secrets_found.txt       # Secrets found by SecretFinder
 └── mar0xwan.txt                # Dirsearch results (only if -dir flag used)
 ```
 
@@ -228,6 +277,11 @@ Sent when the scan finishes successfully, showing:
 - PHP files found
 - JSON files found
 - Sensitive files (BIGRAC) found
+- Parameters discovered
+- Subdomain takeovers found (if `-takeover` flag used)
+- Secrets found (if `-secret` flag used)
+- Dirsearch results (if `-dir` flag used)
+- Technologies detected
 - Total scan duration
 
 #### 3. ⚠️ Error Notifications
@@ -260,6 +314,8 @@ Finished scanning **target.com**
 📋 JSON Files: 56
 🔴 BIGRAC: 12
 🔍 Parameters: 156
+🚨 Takeovers: 2 found (if -takeover flag used)
+🔑 Secrets: 15 found (if -secret flag used)
 📁 Dirsearch: 245 found (if -dir flag used)
 🔧 Technologies: Apache/2.4.41, PHP/7.4, WordPress, jQuery, Nginx
 ⏱️ Duration: 5m 32s
@@ -341,6 +397,8 @@ The tool uses color-coded output for better readability:
 | `php.txt` | PHP files | Test for vulnerabilities |
 | `json.txt` | JSON files | API responses, configurations |
 | `BIGRAC.txt` | Sensitive files | High-value targets (APIs, configs, credentials) |
+| `takeover_results.txt` | Subdomain takeover results | Vulnerable subdomains (if -takeover used) |
+| `secrets_output/` | SecretFinder results | Secrets found in JavaScript files (if -secret used) |
 | `mar0xwan.txt` | Dirsearch results | Directory bruteforce findings (if -dir used) |
 
 ## 🔒 BIGRAC Detection
