@@ -497,8 +497,9 @@ main() {
             print_warning "crt.sh returned invalid response, trying alternative..."
             # Alternative: Parse HTML response
             # Escape domain for safe use in regex - escape all special regex characters
-            local domain_escaped=$(printf '%s\n' "$DOMAIN" | sed 's/[.[\]*^$()+?{|}\\]/\\&/g')
-            if timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN" 2>/dev/null | grep -oE '[a-zA-Z0-9._-]+\.'"$domain_escaped" | sort -u > subs_crtsh.txt; then
+            # Using ] at start of character class so it doesn't need escaping
+            local domain_escaped=$(printf '%s\n' "$DOMAIN" | sed 's/[][\\.*^$()+?{|}]/\\&/g')
+            if timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN" 2>/dev/null | grep -oE "[a-zA-Z0-9._-]+\\.$domain_escaped" | sort -u > subs_crtsh.txt; then
                 if [ ! -s subs_crtsh.txt ]; then
                     print_warning "crt.sh returned no results"
                 else
