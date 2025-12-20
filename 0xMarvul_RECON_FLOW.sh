@@ -124,11 +124,12 @@ run_tool() {
     print_info "Running $tool_name... (CTRL+C to skip, CTRL+Z to exit)"
     
     # Run command in background and capture PID
+    # Note: eval is safe here as command strings are hardcoded in the script
     eval "$command" &
     current_pid=$!
     
     # Wait for the process
-    wait $current_pid 2>/dev/null
+    wait "$current_pid" 2>/dev/null
     local exit_code=$?
     current_pid=""
     
