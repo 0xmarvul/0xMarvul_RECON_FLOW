@@ -487,7 +487,7 @@ main() {
         
         # Check if response is valid JSON before parsing
         if echo "$crt_response" | jq -e . >/dev/null 2>&1; then
-            echo "$crt_response" | jq -r '.[].name_value' | sed 's/^\*\.//' | sort -u > subs_crtsh.txt
+            echo "$crt_response" | jq -r '.[].name_value // empty' | sed 's/^\*\.//' | sort -u > subs_crtsh.txt
             if [ ! -s subs_crtsh.txt ]; then
                 print_warning "crt.sh returned no results"
             else
@@ -497,7 +497,7 @@ main() {
             print_warning "crt.sh returned invalid response, trying alternative..."
             # Alternative: Parse HTML response
             # Escape domain for safe use in regex - escape all special regex characters
-            local domain_escaped=$(printf '%s\n' "$DOMAIN" | sed 's/[.[\*^$()+?{|]/\\&/g')
+            local domain_escaped=$(printf '%s\n' "$DOMAIN" | sed 's/[.[\]*^$()+?{|}\\]/\\&/g')
             if timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN" 2>/dev/null | grep -oE '[a-zA-Z0-9._-]+\.'"$domain_escaped" | sort -u > subs_crtsh.txt; then
                 if [ ! -s subs_crtsh.txt ]; then
                     print_warning "crt.sh returned no results"
