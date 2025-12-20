@@ -651,7 +651,9 @@ main() {
         print_info "Running ParamSpider..."
         if paramspider -d "$DOMAIN" 2>/dev/null; then
             # ParamSpider saves to output/ folder by default
-            mv output/$DOMAIN.txt params.txt 2>/dev/null
+            if [ -f "output/$DOMAIN.txt" ]; then
+                mv "output/$DOMAIN.txt" params.txt 2>/dev/null
+            fi
             if [ -f params.txt ]; then
                 param_count=$(wc -l < params.txt 2>/dev/null || echo 0)
                 print_success "ParamSpider completed - Parameters found: $param_count"
@@ -711,14 +713,14 @@ main() {
             mkdir -p gf
             
             # Run all patterns
-            cat allurls.txt | gf xss > gf/xss.txt 2>/dev/null
-            cat allurls.txt | gf sqli > gf/sqli.txt 2>/dev/null
-            cat allurls.txt | gf ssrf > gf/ssrf.txt 2>/dev/null
-            cat allurls.txt | gf lfi > gf/lfi.txt 2>/dev/null
-            cat allurls.txt | gf redirect > gf/redirect.txt 2>/dev/null
-            cat allurls.txt | gf rce > gf/rce.txt 2>/dev/null
-            cat allurls.txt | gf idor > gf/idor.txt 2>/dev/null
-            cat allurls.txt | gf ssti > gf/ssti.txt 2>/dev/null
+            gf xss < allurls.txt > gf/xss.txt 2>/dev/null
+            gf sqli < allurls.txt > gf/sqli.txt 2>/dev/null
+            gf ssrf < allurls.txt > gf/ssrf.txt 2>/dev/null
+            gf lfi < allurls.txt > gf/lfi.txt 2>/dev/null
+            gf redirect < allurls.txt > gf/redirect.txt 2>/dev/null
+            gf rce < allurls.txt > gf/rce.txt 2>/dev/null
+            gf idor < allurls.txt > gf/idor.txt 2>/dev/null
+            gf ssti < allurls.txt > gf/ssti.txt 2>/dev/null
             
             # Count results
             xss_count=$(wc -l < gf/xss.txt 2>/dev/null || echo 0)
