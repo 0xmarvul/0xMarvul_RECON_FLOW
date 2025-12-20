@@ -22,6 +22,8 @@ START_TIME_EPOCH=$(date +%s)
 
 # Feature flags
 ENABLE_DIRSEARCH=false
+ENABLE_SECRETFINDER=false
+ENABLE_TAKEOVER=false
 
 # Banner function
 show_banner() {
@@ -161,6 +163,8 @@ send_discord_complete() {
     local param_count="${9:-0}"
     local dirsearch_count="${10:-0}"
     local technologies="${11:-N/A}"
+    local takeover_count="${12:-0}"
+    local secret_count="${13:-0}"
     
     # Calculate duration
     local end_time_epoch=$(date +%s)
@@ -182,6 +186,18 @@ send_discord_complete() {
       {"name": "📋 JSON Files", "value": "'"$json_count"'", "inline": true},
       {"name": "🔴 BIGRAC", "value": "'"$bigrac_count"'", "inline": true},
       {"name": "🔍 Parameters", "value": "'"$param_count"'", "inline": true}'
+    
+    # Add takeover field only if it was run
+    if [ "$ENABLE_TAKEOVER" = true ]; then
+        fields="$fields"',
+      {"name": "🚨 Takeovers", "value": "'"$takeover_count"' found", "inline": true}'
+    fi
+    
+    # Add secrets field only if it was run
+    if [ "$ENABLE_SECRETFINDER" = true ]; then
+        fields="$fields"',
+      {"name": "🔑 Secrets", "value": "'"$secret_count"' found", "inline": true}'
+    fi
     
     # Add dirsearch field only if it was run
     if [ "$ENABLE_DIRSEARCH" = true ] && [ "$dirsearch_count" -gt 0 ]; then
@@ -241,6 +257,24 @@ check_dependencies() {
         fi
     fi
     
+    if [ "$ENABLE_SECRETFINDER" = true ]; then
+        if command -v secretfinder &> /dev/null; then
+            print_success "secretfinder is installed"
+        else
+            print_warning "secretfinder is NOT installed (required for -secret flag)"
+            optional_tools+=("secretfinder")
+        fi
+    fi
+    
+    if [ "$ENABLE_TAKEOVER" = true ]; then
+        if command -v subzy &> /dev/null; then
+            print_success "subzy is installed"
+        else
+            print_warning "subzy is NOT installed (required for -takeover flag)"
+            optional_tools+=("subzy")
+        fi
+    fi
+    
     if [ ${#missing_tools[@]} -gt 0 ]; then
         print_warning "Some tools are missing. Script will continue with available tools."
         print_info "Missing tools: ${missing_tools[*]}"
@@ -263,13 +297,17 @@ usage() {
     echo ""
     echo -e "${BOLD}Options:${NC}"
     echo -e "  ${CYAN}-dir${NC}              Enable directory bruteforce with dirsearch"
-    echo -e "  ${CYAN}--webhook <url>${NC}    Use custom Discord webhook URL"
-    echo -e "  ${CYAN}--no-notify${NC}        Disable Discord notifications"
+    echo -e "  ${CYAN}-secret${NC}           Enable secret finding in JavaScript files"
+    echo -e "  ${CYAN}-takeover${NC}         Enable subdomain takeover check with Subzy"
+    echo -e "  ${CYAN}--webhook <url>${NC}   Use custom Discord webhook URL"
+    echo -e "  ${CYAN}--no-notify${NC}       Disable Discord notifications"
     echo ""
     echo -e "${BOLD}Examples:${NC}"
     echo -e "  ${CYAN}$0 target.com${NC}"
     echo -e "  ${CYAN}$0 target.com -dir${NC}"
-    echo -e "  ${CYAN}$0 target.com -dir --no-notify${NC}"
+    echo -e "  ${CYAN}$0 target.com -secret${NC}"
+    echo -e "  ${CYAN}$0 target.com -takeover${NC}"
+    echo -e "  ${CYAN}$0 target.com -dir -secret -takeover${NC}"
     echo ""
     exit 1
 }
@@ -283,6 +321,14 @@ main() {
         case $1 in
             -dir)
                 ENABLE_DIRSEARCH=true
+                shift
+                ;;
+            -secret)
+                ENABLE_SECRETFINDER=true
+                shift
+                ;;
+            -takeover)
+                ENABLE_TAKEOVER=true
                 shift
                 ;;
             --webhook)
@@ -449,8 +495,43 @@ main() {
         live_hosts=0
     fi
     
-    # Step 3.5: Technology Detection
-    print_step "Step 3.5: Technology Detection"
+    # Step 3.5: Subdomain Takeover Check (Optional)
+    takeover_count=0
+    if [ "$ENABLE_TAKEOVER" = true ]; then
+        print_step "Step 3.5: Subdomain Takeover Check"
+        print_info "Timestamp: $(get_timestamp)"
+        
+        if [ -s live_hosts.txt ] && command -v subzy &> /dev/null; then
+            print_info "Running Subzy to check for subdomain takeover..."
+            if subzy run --targets live_hosts.txt --hide_fails > takeover_results.txt 2>/dev/null; then
+                if [ -s takeover_results.txt ]; then
+                    takeover_count=$(grep -c "VULNERABLE" takeover_results.txt 2>/dev/null || echo 0)
+                    if [ "$takeover_count" -gt 0 ]; then
+                        print_success "Subzy completed - Found $takeover_count potential takeovers!"
+                        # Send Discord alert for takeovers found
+                        send_discord_error "$DOMAIN" "Subdomain Takeover" "Found $takeover_count vulnerable subdomains!"
+                    else
+                        print_success "Subzy completed - No takeovers found"
+                    fi
+                else
+                    print_warning "Subzy completed - No results"
+                fi
+            else
+                print_error "Subzy failed"
+                failed_tools+=("subzy")
+                send_discord_error "$DOMAIN" "subzy" "Command execution failed"
+            fi
+        else
+            if [ ! -s live_hosts.txt ]; then
+                print_warning "No live hosts to check for takeover"
+            else
+                print_warning "Subzy not installed, skipping takeover check..."
+            fi
+        fi
+    fi
+    
+    # Step 4: Technology Detection
+    print_step "Step 4: Technology Detection"
     print_info "Timestamp: $(get_timestamp)"
     
     technologies="N/A"
@@ -480,8 +561,8 @@ main() {
         fi
     fi
     
-    # Step 4: URL Gathering
-    print_step "Step 4: URL Gathering"
+    # Step 5: URL Gathering
+    print_step "Step 5: URL Gathering"
     print_info "Timestamp: $(get_timestamp)"
     
     if [ -s live_hosts.txt ]; then
@@ -531,8 +612,8 @@ main() {
         print_warning "No live hosts found, skipping URL gathering..."
     fi
     
-    # Step 5: Merge URLs
-    print_step "Step 5: Merging URLs"
+    # Step 6: Merge URLs
+    print_step "Step 6: Merging URLs"
     print_info "Timestamp: $(get_timestamp)"
     
     if [ -f wayback.txt ] || [ -f katana.txt ]; then
@@ -545,8 +626,8 @@ main() {
         total_urls=0
     fi
     
-    # Step 5.5: Parameter Discovery
-    print_step "Step 5.5: Parameter Discovery with ParamSpider"
+    # Step 6.5: Parameter Discovery
+    print_step "Step 6.5: Parameter Discovery with ParamSpider"
     print_info "Timestamp: $(get_timestamp)"
     
     param_count=0
@@ -568,8 +649,8 @@ main() {
         print_warning "ParamSpider not installed, skipping parameter discovery..."
     fi
     
-    # Step 6: Filter Specific File Types
-    print_step "Step 6: Filtering Specific File Types"
+    # Step 7: Filter Specific File Types
+    print_step "Step 7: Filtering Specific File Types"
     print_info "Timestamp: $(get_timestamp)"
     
     if [ -s allurls.txt ]; then
@@ -600,10 +681,10 @@ main() {
         print_warning "No URLs to filter"
     fi
     
-    # Step 6.5: Directory Bruteforce (Optional)
+    # Step 7.5: Directory Bruteforce (Optional)
     dirsearch_count=0
     if [ "$ENABLE_DIRSEARCH" = true ]; then
-        print_step "Step 6.5: Directory Bruteforce with Dirsearch"
+        print_step "Step 7.5: Directory Bruteforce with Dirsearch"
         print_info "Timestamp: $(get_timestamp)"
         
         if [ -s live_hosts.txt ] && command -v dirsearch &> /dev/null; then
@@ -635,6 +716,38 @@ main() {
         fi
     fi
     
+    # Step 8: Secret Finding (Optional)
+    secret_count=0
+    if [ "$ENABLE_SECRETFINDER" = true ]; then
+        print_step "Step 8: Secret Finding with SecretFinder"
+        print_info "Timestamp: $(get_timestamp)"
+        
+        if [ -s javascript.txt ] && command -v secretfinder &> /dev/null; then
+            print_info "Running SecretFinder on JavaScript files..."
+            
+            # Create secrets output directory
+            mkdir -p secrets_output
+            
+            # Run secretfinder on each JS file
+            while IFS= read -r js_url; do
+                secretfinder -i "$js_url" -o cli >> secrets_output/secrets_found.txt 2>/dev/null
+            done < javascript.txt
+            
+            if [ -s secrets_output/secrets_found.txt ]; then
+                secret_count=$(wc -l < secrets_output/secrets_found.txt 2>/dev/null || echo 0)
+                print_success "SecretFinder completed - Found $secret_count potential secrets"
+            else
+                print_warning "SecretFinder completed - No secrets found"
+            fi
+        else
+            if [ ! -s javascript.txt ]; then
+                print_warning "No JavaScript files to scan for secrets"
+            else
+                print_warning "SecretFinder not installed, skipping..."
+            fi
+        fi
+    fi
+    
     # Final Summary
     print_step "FINAL SUMMARY"
     print_info "End Time: $(get_timestamp)"
@@ -658,6 +771,12 @@ main() {
     echo -e "  ${GREEN}►${NC} JSON files: ${BOLD}${json_count:-0}${NC}"
     echo -e "  ${GREEN}►${NC} BIGRAC sensitive files: ${BOLD}${bigrac_count:-0}${NC}"
     echo -e "  ${GREEN}►${NC} Parameters discovered: ${BOLD}${param_count:-0}${NC}"
+    if [ "$ENABLE_TAKEOVER" = true ]; then
+        echo -e "  ${GREEN}►${NC} Subdomain Takeovers: ${BOLD}${takeover_count:-0}${NC}"
+    fi
+    if [ "$ENABLE_SECRETFINDER" = true ]; then
+        echo -e "  ${GREEN}►${NC} Secrets found: ${BOLD}${secret_count:-0}${NC}"
+    fi
     if [ "$ENABLE_DIRSEARCH" = true ]; then
         echo -e "  ${GREEN}►${NC} Dirsearch findings: ${BOLD}${dirsearch_count:-0}${NC}"
     fi
@@ -680,6 +799,12 @@ main() {
     echo -e "  ${CYAN}►${NC} ${BOLD}php.txt${NC} - PHP file URLs (potential vulnerabilities)"
     echo -e "  ${CYAN}►${NC} ${BOLD}json.txt${NC} - JSON file URLs (API responses, configs)"
     echo -e "  ${CYAN}►${NC} ${BOLD}BIGRAC.txt${NC} - Sensitive files: swagger docs, API docs, configs, .env, SQL dumps, credentials"
+    if [ "$ENABLE_TAKEOVER" = true ]; then
+        echo -e "  ${CYAN}►${NC} ${BOLD}takeover_results.txt${NC} - Subdomain takeover check results from Subzy"
+    fi
+    if [ "$ENABLE_SECRETFINDER" = true ]; then
+        echo -e "  ${CYAN}►${NC} ${BOLD}secrets_output/${NC} - Directory containing secrets found in JavaScript files"
+    fi
     if [ "$ENABLE_DIRSEARCH" = true ]; then
         echo -e "  ${CYAN}►${NC} ${BOLD}mar0xwan.txt${NC} - Directory bruteforce results from Dirsearch"
     fi
@@ -694,7 +819,7 @@ main() {
     fi
     
     # Send completion notification to Discord
-    send_discord_complete "$DOMAIN" "${total_subs:-0}" "${live_hosts:-0}" "${total_urls:-0}" "${js_count:-0}" "${php_count:-0}" "${json_count:-0}" "${bigrac_count:-0}" "${param_count:-0}" "${dirsearch_count:-0}" "$technologies"
+    send_discord_complete "$DOMAIN" "${total_subs:-0}" "${live_hosts:-0}" "${total_urls:-0}" "${js_count:-0}" "${php_count:-0}" "${json_count:-0}" "${bigrac_count:-0}" "${param_count:-0}" "${dirsearch_count:-0}" "$technologies" "${takeover_count:-0}" "${secret_count:-0}"
     
     print_success "Reconnaissance completed!"
     echo -e "${CYAN}All output files saved in: ${BOLD}$OUTPUT_DIR/${NC}\n"
