@@ -315,19 +315,19 @@ main() {
     if [ -s allurls.txt ]; then
         # JavaScript files
         print_info "Filtering JavaScript files..."
-        grep -E "\.js" allurls.txt >> javascript.txt 2>/dev/null
+        grep -E "\.js" allurls.txt > javascript.txt 2>/dev/null
         js_count=$(wc -l < javascript.txt 2>/dev/null || echo 0)
         print_success "JavaScript files found: $js_count"
         
         # PHP files
         print_info "Filtering PHP files..."
-        grep -E "\.php" allurls.txt >> php.txt 2>/dev/null
+        grep -E "\.php" allurls.txt > php.txt 2>/dev/null
         php_count=$(wc -l < php.txt 2>/dev/null || echo 0)
         print_success "PHP files found: $php_count"
         
         # JSON files
         print_info "Filtering JSON files..."
-        grep -Ei '\.json($|\?|&)' allurls.txt >> json.txt 2>/dev/null
+        grep -Ei '\.json($|\?|&)' allurls.txt > json.txt 2>/dev/null
         json_count=$(wc -l < json.txt 2>/dev/null || echo 0)
         print_success "JSON files found: $json_count"
         

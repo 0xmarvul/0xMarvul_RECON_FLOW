@@ -180,7 +180,7 @@ The tool uses color-coded output for better readability:
 
 ## 🔒 BIGRAC Detection
 
-BIGRAC (Big Rac files) detection finds sensitive files including:
+**BIGRAC** (Bug bounty Interesting Gateways, Routes, Apis, and Configurations) detection finds sensitive files including:
 
 - Swagger/OpenAPI documentation (`/swagger`, `/api-docs`)
 - Configuration files (`config.json`, `config.yaml`, `.env`)
