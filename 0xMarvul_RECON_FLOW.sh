@@ -30,26 +30,30 @@ ENABLE_GF=false
 show_banner() {
     echo -e "${CYAN}"
     cat << "EOF"
- _____ _   ____  __                      _
-|  _  |_|_|    \|  | ___ ___ _ _ _ ___ _| |
-| |   |_'_| |  |     |_ -|  _| | | | . | . |
-|__|__|_,_|____|__|__|___|___|_  |_|  _|___|
-                              |___|_|
-
-    ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗
-    ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║
-    ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║
-    ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║
-    ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║
-    ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝
-
-    ███████╗██╗      ██████╗ ██╗    ██╗
-    ██╔════╝██║     ██╔═══██╗██║    ██║
-    █████╗  ██║     ██║   ██║██║ █╗ ██║
-    ██╔══╝  ██║     ██║   ██║██║███╗██║
-    ██║     ███████╗╚██████╔╝╚███╔███╔╝
-    ╚═╝     ╚══════╝ ╚═════╝  ╚══╝╚══╝
-
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║     ██████╗ ██╗  ██╗███╗   ███╗ █████╗ ██████╗ ██╗   ██╗██╗   ║
+║    ██╔═████╗╚██╗██╔╝████╗ ████║██╔══██╗██╔══██╗██║   ██║██║   ║
+║    ██║██╔██║ ╚███╔╝ ██╔████╔██║███████║██████╔╝██║   ██║██║   ║
+║    ████╔╝██║ ██╔██╗ ██║╚██╔╝██║██╔══██║██╔══██╗╚██╗ ██╔╝██║   ║
+║    ╚██████╔╝██╔╝ ██╗██║ ╚═╝ ██║██║  ██║██║  ██║ ╚████╔╝ ███████╗║
+║     ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝║
+║                                                               ║
+║    ██████╗ ███████╗ ██████╗ ██████╗ ███╗   ██╗               ║
+║    ██╔══██╗██╔════╝██╔════╝██╔═══██╗████╗  ██║               ║
+║    ██████╔╝█████╗  ██║     ██║   ██║██╔██╗ ██║               ║
+║    ██╔══██╗██╔══╝  ██║     ██║   ██║██║╚██╗██║               ║
+║    ██║  ██║███████╗╚██████╗╚██████╔╝██║ ╚████║               ║
+║    ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝               ║
+║                                                               ║
+║    ███████╗██╗      ██████╗ ██╗    ██╗                       ║
+║    ██╔════╝██║     ██╔═══██╗██║    ██║                       ║
+║    █████╗  ██║     ██║   ██║██║ █╗ ██║                       ║
+║    ██╔══╝  ██║     ██║   ██║██║███╗██║                       ║
+║    ██║     ███████╗╚██████╔╝╚███╔███╔╝                       ║
+║    ╚═╝     ╚══════╝ ╚═════╝  ╚══╝╚══╝                        ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
 EOF
     echo -e "${BOLD}${GREEN}    [ 0xMarvul RECON FLOW - v1.0 ]${NC}"
     echo -e "${CYAN}    Automated Reconnaissance Tool for Bug Bounty${NC}"
@@ -384,6 +388,9 @@ main() {
     
     OUTPUT_DIR="$DOMAIN"
     
+    # Capture start time for duration calculation
+    START_TIME=$(date +%s)
+    
     print_info "Target Domain: ${BOLD}$DOMAIN${NC}"
     print_info "Start Time: $(get_timestamp)"
     
@@ -482,7 +489,7 @@ main() {
     fi
     
     # Step 2: Aggregate and Deduplicate
-    print_step "Step 2: Aggregating and Deduplicating Subdomains"
+    print_step "Step 2: DNS Resolution"
     print_info "Timestamp: $(get_timestamp)"
     
     if ls subs_*.txt 1> /dev/null 2>&1; then
@@ -495,7 +502,7 @@ main() {
     fi
     
     # Step 3: Check for Live Web Servers
-    print_step "Step 3: Checking for Live Web Servers"
+    print_step "Step 3: Live Host Check"
     print_info "Timestamp: $(get_timestamp)"
     
     if [ -s all_subs.txt ] && command -v httpx &> /dev/null; then
@@ -514,10 +521,10 @@ main() {
         live_hosts=0
     fi
     
-    # Step 3.5: Subdomain Takeover Check (Optional)
+    # Step 10: Subdomain Takeover Check (Optional)
     takeover_count=0
     if [ "$ENABLE_TAKEOVER" = true ]; then
-        print_step "Step 3.5: Subdomain Takeover Check"
+        print_step "Step 10: Subdomain Takeover (-takeover)"
         print_info "Timestamp: $(get_timestamp)"
         
         if [ -s live_hosts.txt ] && command -v subzy &> /dev/null; then
@@ -549,10 +556,7 @@ main() {
         fi
     fi
     
-    # Step 4: Technology Detection
-    print_step "Step 4: Technology Detection"
-    print_info "Timestamp: $(get_timestamp)"
-    
+    # Technology Detection (unnumbered - runs between steps)
     technologies="N/A"
     if [ -s live_hosts.txt ] && command -v httpx &> /dev/null; then
         print_info "Running Tech Detection..."
@@ -580,8 +584,8 @@ main() {
         fi
     fi
     
-    # Step 5: URL Gathering
-    print_step "Step 5: URL Gathering"
+    # Step 4: URL Gathering
+    print_step "Step 4: URL Gathering"
     print_info "Timestamp: $(get_timestamp)"
     
     if [ -s live_hosts.txt ]; then
@@ -631,10 +635,7 @@ main() {
         print_warning "No live hosts found, skipping URL gathering..."
     fi
     
-    # Step 6: Merge URLs
-    print_step "Step 6: Merging URLs"
-    print_info "Timestamp: $(get_timestamp)"
-    
+    # Step 4 continued: Merge URLs
     if [ -f wayback.txt ] || [ -f katana.txt ]; then
         cat wayback.txt katana.txt 2>/dev/null | sort -u > allurls.txt
         total_urls=$(wc -l < allurls.txt 2>/dev/null || echo 0)
@@ -645,8 +646,8 @@ main() {
         total_urls=0
     fi
     
-    # Step 6.5: Parameter Discovery
-    print_step "Step 6.5: Parameter Discovery with ParamSpider"
+    # Step 6: Parameter Discovery
+    print_step "Step 6: Parameter Discovery"
     print_info "Timestamp: $(get_timestamp)"
     
     param_count=0
@@ -672,8 +673,8 @@ main() {
         print_warning "ParamSpider not installed, skipping parameter discovery..."
     fi
     
-    # Step 7: Filter Specific File Types
-    print_step "Step 7: Filtering Specific File Types"
+    # Step 5: Filter Specific File Types (JavaScript Extraction)
+    print_step "Step 5: JavaScript Extraction"
     print_info "Timestamp: $(get_timestamp)"
     
     if [ -s allurls.txt ]; then
@@ -704,9 +705,9 @@ main() {
         print_warning "No URLs to filter"
     fi
     
-    # Step 7.5: GF Patterns (Optional)
+    # Step 9: GF Patterns (Optional)
     if [ "$ENABLE_GF" = true ]; then
-        print_step "Step 7.5: GF Patterns - Filtering URLs for Vulnerabilities"
+        print_step "Step 9: GF Patterns (-gf)"
         print_info "Timestamp: $(get_timestamp)"
         
         if [ -s allurls.txt ] && command -v gf &> /dev/null; then
@@ -757,10 +758,10 @@ main() {
         fi
     fi
     
-    # Step 7.6: Directory Bruteforce (Optional)
+    # Step 7: Directory Bruteforce (Optional)
     dirsearch_count=0
     if [ "$ENABLE_DIRSEARCH" = true ]; then
-        print_step "Step 7.6: Directory Bruteforce with Dirsearch"
+        print_step "Step 7: Directory Bruteforce (-dir)"
         print_info "Timestamp: $(get_timestamp)"
         
         if [ -s live_hosts.txt ] && command -v dirsearch &> /dev/null; then
@@ -795,7 +796,7 @@ main() {
     # Step 8: Secret Finding (Optional)
     secret_count=0
     if [ "$ENABLE_SECRETFINDER" = true ]; then
-        print_step "Step 8: Secret Finding with SecretFinder"
+        print_step "Step 8: SecretFinder (-secret)"
         print_info "Timestamp: $(get_timestamp)"
         
         if [ -s javascript.txt ] && command -v secretfinder &> /dev/null; then
@@ -895,8 +896,24 @@ main() {
         echo ""
     fi
     
-    # Send completion notification to Discord
-    send_discord_complete "$DOMAIN" "${total_subs:-0}" "${live_hosts:-0}" "${total_urls:-0}" "${js_count:-0}" "${php_count:-0}" "${json_count:-0}" "${bigrac_count:-0}" "${param_count:-0}" "${dirsearch_count:-0}" "$technologies" "${takeover_count:-0}" "${secret_count:-0}"
+    # Discord End Notification
+    if [ -n "$DISCORD_WEBHOOK" ] && [ "$NOTIFY_ENABLED" = true ]; then
+        END_TIME=$(date +%s)
+        DURATION_SEC=$((END_TIME - START_TIME))
+        DURATION_MIN=$((DURATION_SEC / 60))
+        DURATION_REMAIN=$((DURATION_SEC % 60))
+        
+        send_discord "✅ Recon Complete" "Finished scanning **$DOMAIN**
+
+📍 **Subdomains:** $(wc -l < all_subs.txt 2>/dev/null || echo 0)
+🌐 **Live Hosts:** $(wc -l < live_hosts.txt 2>/dev/null || echo 0)
+🔗 **Total URLs:** $(wc -l < allurls.txt 2>/dev/null || echo 0)
+📜 **JavaScript:** $(wc -l < javascript.txt 2>/dev/null || echo 0)
+🐘 **PHP Files:** $(grep -c '\.php' allurls.txt 2>/dev/null || echo 0)
+📋 **JSON Files:** $(grep -c '\.json' allurls.txt 2>/dev/null || echo 0)
+🔍 **Parameters:** $(wc -l < params.txt 2>/dev/null || echo 0)
+⏱️ **Duration:** ${DURATION_MIN}m ${DURATION_REMAIN}s" 65280 "[]" "0xMarvul RECON FLOW"
+    fi
     
     print_success "Reconnaissance completed!"
     echo -e "${CYAN}All output files saved in: ${BOLD}$OUTPUT_DIR/${NC}\n"
