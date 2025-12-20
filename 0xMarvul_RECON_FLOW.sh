@@ -24,6 +24,7 @@ START_TIME_EPOCH=$(date +%s)
 ENABLE_DIRSEARCH=false
 ENABLE_SECRETFINDER=false
 ENABLE_TAKEOVER=false
+ENABLE_GF=false
 
 # Banner function
 show_banner() {
@@ -275,6 +276,15 @@ check_dependencies() {
         fi
     fi
     
+    if [ "$ENABLE_GF" = true ]; then
+        if command -v gf &> /dev/null; then
+            print_success "gf is installed"
+        else
+            print_warning "gf is NOT installed (required for -gf flag)"
+            optional_tools+=("gf")
+        fi
+    fi
+    
     if [ ${#missing_tools[@]} -gt 0 ]; then
         print_warning "Some tools are missing. Script will continue with available tools."
         print_info "Missing tools: ${missing_tools[*]}"
@@ -299,15 +309,17 @@ usage() {
     echo -e "  ${CYAN}-dir${NC}              Enable directory bruteforce with dirsearch"
     echo -e "  ${CYAN}-secret${NC}           Enable secret finding in JavaScript files"
     echo -e "  ${CYAN}-takeover${NC}         Enable subdomain takeover check with Subzy"
+    echo -e "  ${CYAN}-gf${NC}               Enable GF patterns to filter URLs for vulnerabilities"
     echo -e "  ${CYAN}--webhook <url>${NC}   Use custom Discord webhook URL"
     echo -e "  ${CYAN}--no-notify${NC}       Disable Discord notifications"
     echo ""
     echo -e "${BOLD}Examples:${NC}"
     echo -e "  ${CYAN}$0 target.com${NC}"
     echo -e "  ${CYAN}$0 target.com -dir${NC}"
+    echo -e "  ${CYAN}$0 target.com -gf${NC}"
     echo -e "  ${CYAN}$0 target.com -secret${NC}"
     echo -e "  ${CYAN}$0 target.com -takeover${NC}"
-    echo -e "  ${CYAN}$0 target.com -dir -secret -takeover${NC}"
+    echo -e "  ${CYAN}$0 target.com -dir -gf -secret -takeover${NC}"
     echo ""
     exit 1
 }
@@ -329,6 +341,10 @@ main() {
                 ;;
             -takeover)
                 ENABLE_TAKEOVER=true
+                shift
+                ;;
+            -gf)
+                ENABLE_GF=true
                 shift
                 ;;
             --webhook)
@@ -633,7 +649,11 @@ main() {
     param_count=0
     if command -v paramspider &> /dev/null; then
         print_info "Running ParamSpider..."
-        if paramspider -d "$DOMAIN" -o params.txt 2>/dev/null; then
+        if paramspider -d "$DOMAIN" 2>/dev/null; then
+            # ParamSpider saves to output/ folder by default
+            if [ -f "output/$DOMAIN.txt" ]; then
+                mv "output/$DOMAIN.txt" params.txt 2>/dev/null
+            fi
             if [ -f params.txt ]; then
                 param_count=$(wc -l < params.txt 2>/dev/null || echo 0)
                 print_success "ParamSpider completed - Parameters found: $param_count"
@@ -681,10 +701,63 @@ main() {
         print_warning "No URLs to filter"
     fi
     
-    # Step 7.5: Directory Bruteforce (Optional)
+    # Step 7.5: GF Patterns (Optional)
+    if [ "$ENABLE_GF" = true ]; then
+        print_step "Step 7.5: GF Patterns - Filtering URLs for Vulnerabilities"
+        print_info "Timestamp: $(get_timestamp)"
+        
+        if [ -s allurls.txt ] && command -v gf &> /dev/null; then
+            print_info "Running GF patterns on URLs..."
+            
+            # Create gf output directory
+            mkdir -p gf
+            
+            # Run all patterns
+            gf xss < allurls.txt > gf/xss.txt 2>/dev/null
+            gf sqli < allurls.txt > gf/sqli.txt 2>/dev/null
+            gf ssrf < allurls.txt > gf/ssrf.txt 2>/dev/null
+            gf lfi < allurls.txt > gf/lfi.txt 2>/dev/null
+            gf redirect < allurls.txt > gf/redirect.txt 2>/dev/null
+            gf rce < allurls.txt > gf/rce.txt 2>/dev/null
+            gf idor < allurls.txt > gf/idor.txt 2>/dev/null
+            gf ssti < allurls.txt > gf/ssti.txt 2>/dev/null
+            
+            # Count results
+            xss_count=$(wc -l < gf/xss.txt 2>/dev/null || echo 0)
+            sqli_count=$(wc -l < gf/sqli.txt 2>/dev/null || echo 0)
+            ssrf_count=$(wc -l < gf/ssrf.txt 2>/dev/null || echo 0)
+            lfi_count=$(wc -l < gf/lfi.txt 2>/dev/null || echo 0)
+            redirect_count=$(wc -l < gf/redirect.txt 2>/dev/null || echo 0)
+            rce_count=$(wc -l < gf/rce.txt 2>/dev/null || echo 0)
+            idor_count=$(wc -l < gf/idor.txt 2>/dev/null || echo 0)
+            ssti_count=$(wc -l < gf/ssti.txt 2>/dev/null || echo 0)
+            
+            print_success "GF Patterns completed:"
+            echo -e "    ${GREEN}►${NC} XSS: $xss_count"
+            echo -e "    ${GREEN}►${NC} SQLi: $sqli_count"
+            echo -e "    ${GREEN}►${NC} SSRF: $ssrf_count"
+            echo -e "    ${GREEN}►${NC} LFI: $lfi_count"
+            echo -e "    ${GREEN}►${NC} Redirect: $redirect_count"
+            echo -e "    ${GREEN}►${NC} RCE: $rce_count"
+            echo -e "    ${GREEN}►${NC} IDOR: $idor_count"
+            echo -e "    ${GREEN}►${NC} SSTI: $ssti_count"
+            
+            # Remove empty files
+            find gf/ -type f -empty -delete 2>/dev/null
+            
+        else
+            if [ ! -s allurls.txt ]; then
+                print_warning "No URLs to filter with GF patterns"
+            else
+                print_warning "GF not installed, skipping..."
+            fi
+        fi
+    fi
+    
+    # Step 7.6: Directory Bruteforce (Optional)
     dirsearch_count=0
     if [ "$ENABLE_DIRSEARCH" = true ]; then
-        print_step "Step 7.5: Directory Bruteforce with Dirsearch"
+        print_step "Step 7.6: Directory Bruteforce with Dirsearch"
         print_info "Timestamp: $(get_timestamp)"
         
         if [ -s live_hosts.txt ] && command -v dirsearch &> /dev/null; then
@@ -780,6 +853,9 @@ main() {
     if [ "$ENABLE_DIRSEARCH" = true ]; then
         echo -e "  ${GREEN}►${NC} Dirsearch findings: ${BOLD}${dirsearch_count:-0}${NC}"
     fi
+    if [ "$ENABLE_GF" = true ]; then
+        echo -e "  ${GREEN}►${NC} GF Patterns saved to: ${BOLD}gf/${NC} folder"
+    fi
     echo ""
     
     echo -e "${BOLD}${BLUE}Generated Files:${NC}"
@@ -807,6 +883,9 @@ main() {
     fi
     if [ "$ENABLE_DIRSEARCH" = true ]; then
         echo -e "  ${CYAN}►${NC} ${BOLD}mar0xwan.txt${NC} - Directory bruteforce results from Dirsearch"
+    fi
+    if [ "$ENABLE_GF" = true ]; then
+        echo -e "  ${CYAN}►${NC} ${BOLD}gf/${NC} - Folder containing GF pattern results (xss.txt, sqli.txt, ssrf.txt, etc.)"
     fi
     echo ""
     
