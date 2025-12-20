@@ -1485,16 +1485,22 @@ ${dirsearch_count_local} found"
             fi
         fi
         
-        if [ "$ENABLE_PORT_SCAN" = true ] && [ -n "$port_count" ] && [ "$port_count" -gt 0 ]; then
-            discord_msg="${discord_msg}
+        if [ "$ENABLE_PORT_SCAN" = true ]; then
+            local port_count_local=$(wc -l < open_ports.txt 2>/dev/null || echo 0)
+            if [ "$port_count_local" -gt 0 ]; then
+                discord_msg="${discord_msg}
 🔌 Open Ports
-${port_count}"
+${port_count_local}"
+            fi
         fi
         
-        if [ "$ENABLE_SECRETFINDER" = true ] && [ -n "$secret_count" ] && [ "$secret_count" -gt 0 ]; then
-            discord_msg="${discord_msg}
+        if [ "$ENABLE_SECRETFINDER" = true ]; then
+            local secret_count_local=$(wc -l < secrets_found.txt 2>/dev/null || echo 0)
+            if [ "$secret_count_local" -gt 0 ]; then
+                discord_msg="${discord_msg}
 🔑 Secrets
-${secret_count}"
+${secret_count_local}"
+            fi
         fi
         
         discord_msg="${discord_msg}
