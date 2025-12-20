@@ -107,6 +107,21 @@ This tool requires several external security tools to be installed. Below are th
     go install -v github.com/LukaSikic/subzy@latest
     ```
 
+13. **GF (GF Patterns)** - Pattern-based grep for filtering URLs (only needed if using `-gf` flag)
+    ```bash
+    # Install gf
+    go install github.com/tomnomnom/gf@latest
+    
+    # Install gf patterns
+    git clone https://github.com/1ndianl33t/Gf-Patterns.git
+    mkdir -p ~/.gf
+    cp Gf-Patterns/*.json ~/.gf/
+    
+    # Or install patterns from tomnomnom's repo
+    git clone https://github.com/tomnomnom/gf.git
+    cp gf/examples/*.json ~/.gf/
+    ```
+
 ### Quick Installation (All Go Tools)
 
 If you have Go installed, you can install all Go-based tools at once:
@@ -120,6 +135,7 @@ go install github.com/jaeles-project/gospider@latest
 go install github.com/tomnomnom/waybackurls@latest
 go install github.com/projectdiscovery/katana/cmd/katana@latest
 go install -v github.com/LukaSikic/subzy@latest
+go install github.com/tomnomnom/gf@latest
 
 # Install Python tools
 pip install paramspider dirsearch
@@ -131,6 +147,11 @@ pip install -r requirements.txt
 sudo ln -s $(pwd)/SecretFinder.py /usr/local/bin/secretfinder
 sudo chmod +x /usr/local/bin/secretfinder
 cd ..
+
+# Install GF patterns
+git clone https://github.com/1ndianl33t/Gf-Patterns.git
+mkdir -p ~/.gf
+cp Gf-Patterns/*.json ~/.gf/
 
 # Make sure Go binaries are in your PATH
 export PATH=$PATH:$(go env GOPATH)/bin
@@ -167,6 +188,7 @@ Basic usage:
 - `-dir` - Enable directory bruteforce with dirsearch
 - `-secret` - Enable secret finding in JavaScript files with SecretFinder
 - `-takeover` - Enable subdomain takeover check with Subzy
+- `-gf` - Enable GF patterns to filter URLs for vulnerabilities
 - `--webhook <url>` - Use custom Discord webhook URL
 - `--no-notify` - Disable Discord notifications
 
@@ -192,9 +214,14 @@ Basic usage:
 ./0xMarvul_RECON_FLOW.sh example.com -takeover
 ```
 
+**With GF patterns for vulnerability filtering:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -gf
+```
+
 **With all optional features:**
 ```bash
-./0xMarvul_RECON_FLOW.sh example.com -dir -secret -takeover
+./0xMarvul_RECON_FLOW.sh example.com -dir -secret -takeover -gf
 ```
 
 **Custom webhook without notifications:**
@@ -219,6 +246,7 @@ The script will:
    - URL gathering
    - Parameter discovery
    - File type filtering
+   - GF patterns filtering (if `-gf` flag used)
    - Directory bruteforce (if `-dir` flag used)
    - Secret finding (if `-secret` flag used)
 5. Send error notifications if any tools fail
@@ -249,6 +277,15 @@ target.com/
 ├── php.txt                     # PHP file URLs
 ├── json.txt                    # JSON file URLs
 ├── BIGRAC.txt                  # Sensitive files (configs, APIs, credentials, etc.)
+├── gf/                         # GF patterns results (only if -gf flag used)
+│   ├── xss.txt                 # URLs potentially vulnerable to XSS
+│   ├── sqli.txt                # URLs potentially vulnerable to SQL injection
+│   ├── ssrf.txt                # URLs potentially vulnerable to SSRF
+│   ├── lfi.txt                 # URLs potentially vulnerable to LFI
+│   ├── redirect.txt            # URLs with redirect parameters
+│   ├── rce.txt                 # URLs potentially vulnerable to RCE
+│   ├── idor.txt                # URLs potentially vulnerable to IDOR
+│   └── ssti.txt                # URLs potentially vulnerable to SSTI
 ├── secrets_output/             # Directory containing secrets found in JS files (only if -secret flag used)
 │   └── secrets_found.txt       # Secrets found by SecretFinder
 └── mar0xwan.txt                # Dirsearch results (only if -dir flag used)
@@ -397,6 +434,15 @@ The tool uses color-coded output for better readability:
 | `php.txt` | PHP files | Test for vulnerabilities |
 | `json.txt` | JSON files | API responses, configurations |
 | `BIGRAC.txt` | Sensitive files | High-value targets (APIs, configs, credentials) |
+| `gf/` | GF patterns results | Filtered URLs by vulnerability type (if -gf used) |
+| `gf/xss.txt` | XSS pattern matches | URLs potentially vulnerable to XSS |
+| `gf/sqli.txt` | SQLi pattern matches | URLs potentially vulnerable to SQL injection |
+| `gf/ssrf.txt` | SSRF pattern matches | URLs potentially vulnerable to SSRF |
+| `gf/lfi.txt` | LFI pattern matches | URLs potentially vulnerable to LFI |
+| `gf/redirect.txt` | Redirect pattern matches | URLs with redirect parameters |
+| `gf/rce.txt` | RCE pattern matches | URLs potentially vulnerable to RCE |
+| `gf/idor.txt` | IDOR pattern matches | URLs potentially vulnerable to IDOR |
+| `gf/ssti.txt` | SSTI pattern matches | URLs potentially vulnerable to SSTI |
 | `takeover_results.txt` | Subdomain takeover results | Vulnerable subdomains (if -takeover used) |
 | `secrets_output/` | SecretFinder results | Secrets found in JavaScript files (if -secret used) |
 | `mar0xwan.txt` | Dirsearch results | Directory bruteforce findings (if -dir used) |
