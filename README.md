@@ -8,9 +8,13 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 
 - **Automated Subdomain Enumeration**: Uses multiple sources (Subfinder, Assetfinder, crt.sh, Shrewdeye)
 - **Live Host Detection**: Identifies active web servers using httpx
+- **Technology Detection**: Detects web technologies, CMS, frameworks, and servers
 - **URL Discovery**: Gathers URLs from multiple sources (Gospider, Waybackurls, Katana)
+- **Parameter Discovery**: Discovers URL parameters using ParamSpider
+- **Directory Bruteforce**: Optional directory and file discovery with Dirsearch (use `-dir` flag)
 - **Smart Filtering**: Automatically categorizes JavaScript, PHP, JSON, and sensitive files
 - **BIGRAC Detection**: Identifies sensitive files like Swagger docs, API endpoints, config files, credentials, etc.
+- **Keyboard Controls**: Skip tools with CTRL+C, exit entire script with CTRL+Z
 - **Discord Notifications**: Real-time notifications via Discord webhooks (enabled by default)
 - **Error Handling**: Continues execution even if some tools fail or timeout
 - **Color-Coded Output**: Easy-to-read terminal output with status indicators
@@ -53,7 +57,12 @@ This tool requires several external security tools to be installed. Below are th
    go install github.com/projectdiscovery/katana/cmd/katana@latest
    ```
 
-7. **jq** - JSON processor
+7. **ParamSpider** - Parameter discovery tool
+   ```bash
+   pip install paramspider
+   ```
+
+8. **jq** - JSON processor
    ```bash
    # Ubuntu/Debian
    sudo apt-get install jq
@@ -65,7 +74,7 @@ This tool requires several external security tools to be installed. Below are th
    sudo pacman -S jq
    ```
 
-8. **curl** - Transfer data with URLs (usually pre-installed)
+9. **curl** - Transfer data with URLs (usually pre-installed)
    ```bash
    # Ubuntu/Debian
    sudo apt-get install curl
@@ -73,6 +82,13 @@ This tool requires several external security tools to be installed. Below are th
    # macOS
    brew install curl
    ```
+
+### Optional Tools
+
+10. **Dirsearch** - Web path scanner (only needed if using `-dir` flag)
+    ```bash
+    pip install dirsearch
+    ```
 
 ### Quick Installation (All Go Tools)
 
@@ -86,6 +102,9 @@ go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
 go install github.com/jaeles-project/gospider@latest
 go install github.com/tomnomnom/waybackurls@latest
 go install github.com/projectdiscovery/katana/cmd/katana@latest
+
+# Install Python tools
+pip install paramspider dirsearch
 
 # Make sure Go binaries are in your PATH
 export PATH=$PATH:$(go env GOPATH)/bin
@@ -114,35 +133,80 @@ echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
 
 Basic usage:
 ```bash
-./0xMarvul_RECON_FLOW.sh <domain>
+./0xMarvul_RECON_FLOW.sh <domain> [options]
 ```
 
-Example:
+### Options
+
+- `-dir` - Enable directory bruteforce with dirsearch
+- `--webhook <url>` - Use custom Discord webhook URL
+- `--no-notify` - Disable Discord notifications
+
+### Keyboard Controls
+
+- **CTRL+C** - Skip current tool and continue to the next one
+- **CTRL+Z** - Exit entire script immediately
+
+### Examples
+
+**Basic reconnaissance:**
 ```bash
 ./0xMarvul_RECON_FLOW.sh example.com
 ```
 
-### Command Line Options
+**With directory bruteforce:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -dir
+```
 
-**Custom Discord Webhook:**
+**Custom webhook without notifications:**
 ```bash
 ./0xMarvul_RECON_FLOW.sh example.com --webhook "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL"
 ```
 
-**Disable Discord Notifications:**
+**With directory bruteforce and no notifications:**
 ```bash
-./0xMarvul_RECON_FLOW.sh example.com --no-notify
+./0xMarvul_RECON_FLOW.sh example.com -dir --no-notify
 ```
 
 The script will:
 1. Check for required dependencies
 2. Send a scan start notification to Discord (if enabled)
 3. Create an output directory named after the target domain
-4. Perform reconnaissance across multiple phases
+4. Perform reconnaissance across multiple phases:
+   - Subdomain enumeration
+   - Live host detection
+   - Technology detection
+   - URL gathering
+   - Parameter discovery
+   - Directory bruteforce (if `-dir` flag used)
+   - File type filtering
 5. Send error notifications if any tools fail
 6. Save all results in organized files
 7. Send a completion notification with full statistics
 8. Display a comprehensive summary
+
+### Keyboard Controls During Execution
+
+While the tool is running, you can use keyboard shortcuts to control execution:
+
+**Skip Current Tool (CTRL+C):**
+```
+[*] Running Subfinder... (CTRL+C to skip, CTRL+Z to exit)
+^C
+[!] Skipping current tool...
+[!] Skipped: Subfinder
+[*] Running Assetfinder... (CTRL+C to skip, CTRL+Z to exit)
+```
+
+**Exit Entire Script (CTRL+Z):**
+```
+[*] Running Katana... (CTRL+C to skip, CTRL+Z to exit)
+^Z
+[!] Exiting 0xMarvul RECON FLOW...
+[!] Partial results saved in target.com/
+```
+A Discord notification will be sent about the early exit.
 
 ## 📁 Output Structure
 
@@ -156,14 +220,17 @@ target.com/
 ├── subs_shrewdeye.txt          # Subdomains from Shrewdeye
 ├── all_subs.txt                # All unique subdomains combined
 ├── live_hosts.txt              # Active/responsive web servers
+├── tech_detect.txt             # Detected technologies (CMS, frameworks, servers)
 ├── gospider_output/            # Directory containing Gospider results
 ├── wayback.txt                 # Historical URLs from Wayback Machine
 ├── katana.txt                  # URLs discovered by Katana
 ├── allurls.txt                 # All unique URLs combined
+├── params.txt                  # Discovered parameters from ParamSpider
 ├── javascript.txt              # JavaScript file URLs
 ├── php.txt                     # PHP file URLs
 ├── json.txt                    # JSON file URLs
-└── BIGRAC.txt                  # Sensitive files (configs, APIs, credentials, etc.)
+├── BIGRAC.txt                  # Sensitive files (configs, APIs, credentials, etc.)
+└── mar0xwan.txt                # Dirsearch results (only if -dir flag used)
 ```
 
 ## 🔔 Discord Notifications
@@ -220,6 +287,9 @@ Finished scanning **target.com**
 🐘 PHP Files: 234
 📋 JSON Files: 56
 🔴 BIGRAC: 12
+🔍 Parameters: 156
+📁 Dirsearch: 245 found (if -dir flag used)
+🔧 Technologies: Apache/2.4.41, PHP/7.4, WordPress, jQuery, Nginx
 ⏱️ Duration: 5m 32s
 ```
 
@@ -232,6 +302,14 @@ An error occurred during scan of **target.com**
 ❌ Error: Connection timeout
 
 Scan will continue with other tools
+```
+
+**Scan Cancelled (CTRL+Z):**
+```
+⏹️ Scan Cancelled
+Scan of **target.com** was manually stopped
+
+📁 Partial Results: Saved in target.com/
 ```
 
 ### Using Discord Notifications
@@ -289,14 +367,17 @@ The tool uses color-coded output for better readability:
 | `subs_shrewdeye.txt` | Subdomains from Shrewdeye | Free subdomain enumeration |
 | `all_subs.txt` | Deduplicated subdomains | Complete subdomain list |
 | `live_hosts.txt` | Active web servers | Target for further testing |
+| `tech_detect.txt` | Detected technologies | Identify CMS, frameworks, servers |
 | `gospider_output/` | Gospider crawl results | Deep URL discovery |
 | `wayback.txt` | Wayback Machine URLs | Historical endpoints |
 | `katana.txt` | Katana crawler results | Modern URL discovery |
 | `allurls.txt` | All URLs combined | Complete URL list |
+| `params.txt` | Discovered parameters | Parameter fuzzing and testing |
 | `javascript.txt` | JavaScript files | Find secrets, API keys, endpoints |
 | `php.txt` | PHP files | Test for vulnerabilities |
 | `json.txt` | JSON files | API responses, configurations |
 | `BIGRAC.txt` | Sensitive files | High-value targets (APIs, configs, credentials) |
+| `mar0xwan.txt` | Dirsearch results | Directory bruteforce findings (if -dir used) |
 
 ## 🔒 BIGRAC Detection
 
