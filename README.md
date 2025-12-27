@@ -17,10 +17,60 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 - **Smart Filtering**: Automatically categorizes JavaScript, PHP, JSON, and sensitive files
 - **BIGRAC Detection**: Identifies sensitive files like Swagger docs, API endpoints, config files, credentials, etc.
 - **Discord Notifications**: Real-time notifications via Discord webhooks (enabled by default)
+- **Graceful Skip Feature**: Press **Ctrl+S** to skip any long-running tool while preserving partial results
 - **Error Handling**: Continues execution even if some tools fail or timeout
 - **Color-Coded Output**: Easy-to-read terminal output with status indicators
 - **Progress Tracking**: Real-time progress updates with timestamps
 - **Comprehensive Summary**: Detailed statistics and file descriptions at the end
+
+## ⏭️ Graceful Skip Feature
+
+One of the powerful features of 0xMarvul RECON FLOW is the ability to skip long-running tools without stopping the entire scan.
+
+### How It Works
+
+When running any tool that might take a long time (like `waybackurls`, `katana`, `gospider`, `dirsearch`, `naabu`, etc.), you'll see a hint message:
+
+```
+[*] Running Waybackurls...
+    (Press CTRL+S to skip...)
+```
+
+**Press Ctrl+S** at any time during the tool's execution to:
+- **Stop that specific tool** immediately
+- **Preserve any partial results** already gathered
+- **Continue to the next tool** in the workflow
+
+### Example
+
+```bash
+[*] Running Waybackurls...
+    (Press CTRL+S to skip...)
+[!] Skipped: waybackurls (user interrupted) - partial results saved
+[*] Running Katana...
+    (Press CTRL+S to skip...)
+```
+
+### Why This Feature?
+
+- **Tools like `waybackurls` can take hours or even days** on large targets
+- You may have gathered enough data and want to move forward
+- Prevents wasting time on tools that are taking too long
+- **Partial results are always saved** - you never lose what was already collected
+- Gives you complete control over your reconnaissance workflow
+
+### Supported Tools
+
+The graceful skip feature works with these potentially long-running tools:
+- **waybackurls** - Historical URL discovery
+- **katana** - Modern web crawler
+- **gospider** - Fast web spider
+- **dirsearch** - Directory brute-forcing
+- **paramspider** - Parameter discovery
+- **secretfinder** - Secret scanning in JavaScript
+- **naabu** - Fast port scanner
+- **nmap** - Detailed port scanning
+- **subzy** - Subdomain takeover checking
 
 ## 📋 Prerequisites
 

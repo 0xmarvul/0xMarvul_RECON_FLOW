@@ -27,6 +27,12 @@ ENABLE_TAKEOVER=false
 ENABLE_GF=false
 ENABLE_PORT_SCAN=false
 
+# Skip functionality variables
+SKIP_REQUESTED=false
+CURRENT_TOOL_PID=""
+CURRENT_TOOL_NAME=""
+SKIP_LISTENER_PID=""
+
 # Banner function
 show_banner() {
     echo -e "${CYAN}"
@@ -87,6 +93,85 @@ print_step() {
     echo -e "\n${BOLD}${BLUE}═══════════════════════════════════════${NC}"
     echo -e "${BOLD}${BLUE}[STEP] $1${NC}"
     echo -e "${BOLD}${BLUE}═══════════════════════════════════════${NC}\n"
+}
+
+# Skip functionality
+# Signal handler for skip request
+handle_skip_signal() {
+    SKIP_REQUESTED=true
+}
+
+# Start background listener for Ctrl+S
+start_skip_listener() {
+    # Set up the signal handler
+    trap 'handle_skip_signal' SIGUSR1
+    
+    # Get parent PID to send signal to
+    local parent_pid=$$
+    
+    # Start background process to monitor for Ctrl+S (ASCII 19, hex 0x13)
+    (
+        while true; do
+            # Read single character with timeout (0.1s for responsive detection)
+            if IFS= read -rsn1 -t 0.1 char; then
+                # Check if it's Ctrl+S (0x13)
+                if [[ $char == $'\023' ]]; then
+                    # Send SIGUSR1 to parent process
+                    kill -SIGUSR1 "$parent_pid" 2>/dev/null
+                fi
+            fi
+        done
+    ) &
+    SKIP_LISTENER_PID=$!
+}
+
+# Stop the skip listener
+stop_skip_listener() {
+    if [ -n "$SKIP_LISTENER_PID" ]; then
+        kill "$SKIP_LISTENER_PID" 2>/dev/null
+        wait "$SKIP_LISTENER_PID" 2>/dev/null
+        SKIP_LISTENER_PID=""
+    fi
+}
+
+# Print skip hint
+print_skip_hint() {
+    echo -e "    ${YELLOW}(Press CTRL+S to skip...)${NC}"
+}
+
+# Run a command with skip support
+run_with_skip() {
+    local tool_name="$1"
+    shift
+    local cmd="$@"
+    
+    CURRENT_TOOL_NAME="$tool_name"
+    SKIP_REQUESTED=false
+    
+    # Run the command in background
+    eval "$cmd" &
+    CURRENT_TOOL_PID=$!
+    
+    # Wait for the process and check for skip periodically
+    while kill -0 "$CURRENT_TOOL_PID" 2>/dev/null; do
+        if [ "$SKIP_REQUESTED" = true ]; then
+            kill "$CURRENT_TOOL_PID" 2>/dev/null
+            wait "$CURRENT_TOOL_PID" 2>/dev/null
+            print_warning "Skipped: $CURRENT_TOOL_NAME (user interrupted) - partial results saved"
+            SKIP_REQUESTED=false
+            CURRENT_TOOL_PID=""
+            CURRENT_TOOL_NAME=""
+            return 2  # Return special code for skip
+        fi
+        sleep 0.1  # Short sleep for responsive skip detection
+    done
+    
+    # Get exit code
+    wait "$CURRENT_TOOL_PID"
+    local exit_code=$?
+    CURRENT_TOOL_PID=""
+    CURRENT_TOOL_NAME=""
+    return $exit_code
 }
 
 # Function to get timestamp
@@ -445,6 +530,10 @@ main() {
     
     cd "$OUTPUT_DIR" || exit 1
     
+    # Start skip listener and set up cleanup
+    start_skip_listener
+    trap 'stop_skip_listener; exit' INT TERM EXIT
+    
     # Array to track failed tools
     failed_tools=()
     
@@ -583,19 +672,32 @@ main() {
                 if [ "$ip_count" -gt 0 ]; then
                     # Step 2: Fast scan with Naabu (find open ports)
                     print_info "Running Naabu for fast port discovery..."
-                    if naabu -l ips.txt -o open_ports.txt 2>/dev/null; then
+                    print_skip_hint
+                    run_with_skip "naabu" "naabu -l ips.txt -o open_ports.txt 2>/dev/null"
+                    local exit_code=$?
+                    if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
                         if [ -s open_ports.txt ]; then
                             port_count=$(wc -l < open_ports.txt 2>/dev/null || echo 0)
-                            print_success "Naabu completed - Found $port_count open ports"
+                            if [ $exit_code -eq 0 ]; then
+                                print_success "Naabu completed - Found $port_count open ports"
+                            else
+                                print_info "Naabu - Found $port_count open ports (partial)"
+                            fi
                             
                             # Step 3: Detailed scan with Nmap (get service names)
                             if command -v nmap &> /dev/null; then
                                 print_info "Running Nmap for detailed service detection..."
-                                # Extract unique ports and format for nmap
-                                port_list=$(cut -d':' -f2 open_ports.txt | sort -u | tr '\n' ',' | sed 's/,$//')
+                                print_skip_hint
+                                # Extract unique ports and format for nmap (validate numeric and range)
+                                port_list=$(cut -d':' -f2 open_ports.txt | grep -E '^[0-9]+$' | awk '$1 >= 1 && $1 <= 65535' | sort -u | tr '\n' ',' | sed 's/,$//')
                                 if [ -n "$port_list" ]; then
-                                    if nmap -iL ips.txt -p "$port_list" -sV -oN ports_detailed.txt 2>/dev/null; then
+                                    run_with_skip "nmap" "nmap -iL ips.txt -p \"$port_list\" -sV -oN ports_detailed.txt 2>/dev/null"
+                                    local nmap_exit=$?
+                                    if [ $nmap_exit -eq 0 ]; then
                                         print_success "Nmap completed - Detailed results saved to ports_detailed.txt"
+                                    elif [ $nmap_exit -eq 2 ]; then
+                                        # Skipped - message already printed
+                                        :
                                     else
                                         print_warning "Nmap scan failed"
                                     fi
@@ -606,7 +708,9 @@ main() {
                                 print_warning "Nmap not installed, skipping detailed port scan"
                             fi
                         else
-                            print_warning "Naabu completed - No open ports found"
+                            if [ $exit_code -eq 0 ]; then
+                                print_warning "Naabu completed - No open ports found"
+                            fi
                         fi
                     else
                         print_error "Naabu failed"
@@ -638,18 +742,31 @@ main() {
         
         if [ -s live_hosts.txt ] && command -v subzy &> /dev/null; then
             print_info "Running Subzy to check for subdomain takeover..."
-            if subzy run --targets live_hosts.txt --hide_fails > takeover_results.txt 2>/dev/null; then
+            print_skip_hint
+            run_with_skip "subzy" "subzy run --targets live_hosts.txt --hide_fails > takeover_results.txt 2>/dev/null"
+            local exit_code=$?
+            if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
                 if [ -s takeover_results.txt ]; then
                     takeover_count=$(grep -c "VULNERABLE" takeover_results.txt 2>/dev/null || echo 0)
                     if [ "$takeover_count" -gt 0 ]; then
-                        print_success "Subzy completed - Found $takeover_count potential takeovers!"
+                        if [ $exit_code -eq 0 ]; then
+                            print_success "Subzy completed - Found $takeover_count potential takeovers!"
+                        else
+                            print_info "Subzy - Found $takeover_count potential takeovers (partial)!"
+                        fi
                         # Send Discord alert for takeovers found
                         send_discord_error "$DOMAIN" "Subdomain Takeover" "Found $takeover_count vulnerable subdomains!"
                     else
-                        print_success "Subzy completed - No takeovers found"
+                        if [ $exit_code -eq 0 ]; then
+                            print_success "Subzy completed - No takeovers found"
+                        else
+                            print_info "Subzy - No takeovers found (partial scan)"
+                        fi
                     fi
                 else
-                    print_warning "Subzy completed - No results"
+                    if [ $exit_code -eq 0 ]; then
+                        print_warning "Subzy completed - No results"
+                    fi
                 fi
             else
                 print_error "Subzy failed"
@@ -701,9 +818,15 @@ main() {
         # Gospider
         if command -v gospider &> /dev/null; then
             print_info "Running Gospider..."
-            if gospider -S live_hosts.txt -o gospider_output --quiet 2>/dev/null; then
+            print_skip_hint
+            run_with_skip "gospider" "gospider -S live_hosts.txt -o gospider_output --quiet 2>/dev/null"
+            local exit_code=$?
+            if [ $exit_code -eq 0 ]; then
                 print_success "Gospider completed"
                 print_info "Gospider output saved in gospider_output/ directory"
+            elif [ $exit_code -eq 2 ]; then
+                # Skipped - message already printed by run_with_skip
+                :
             else
                 print_error "Gospider failed"
                 failed_tools+=("gospider")
@@ -716,8 +839,14 @@ main() {
         # Waybackurls
         if command -v waybackurls &> /dev/null; then
             print_info "Running Waybackurls..."
-            if cat live_hosts.txt | waybackurls > wayback.txt 2>/dev/null; then
+            print_skip_hint
+            run_with_skip "waybackurls" "cat live_hosts.txt | waybackurls > wayback.txt 2>/dev/null"
+            local exit_code=$?
+            if [ $exit_code -eq 0 ]; then
                 print_success "Waybackurls completed"
+            elif [ $exit_code -eq 2 ]; then
+                # Skipped - message already printed by run_with_skip
+                :
             else
                 print_error "Waybackurls failed"
                 failed_tools+=("waybackurls")
@@ -730,8 +859,14 @@ main() {
         # Katana
         if command -v katana &> /dev/null; then
             print_info "Running Katana..."
-            if katana -list live_hosts.txt -o katana.txt -silent 2>/dev/null; then
+            print_skip_hint
+            run_with_skip "katana" "katana -list live_hosts.txt -o katana.txt -silent 2>/dev/null"
+            local exit_code=$?
+            if [ $exit_code -eq 0 ]; then
                 print_success "Katana completed"
+            elif [ $exit_code -eq 2 ]; then
+                # Skipped - message already printed by run_with_skip
+                :
             else
                 print_error "Katana failed"
                 failed_tools+=("katana")
@@ -762,7 +897,10 @@ main() {
     param_count=0
     if command -v paramspider &> /dev/null; then
         print_info "Running ParamSpider..."
-        if paramspider -d "$DOMAIN" 2>/dev/null; then
+        print_skip_hint
+        run_with_skip "paramspider" "paramspider -d \"$DOMAIN\" 2>/dev/null"
+        local exit_code=$?
+        if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
             # ParamSpider saves output to results directory by default
             # Find and move the output file to params.txt
             if [ -f "results/${DOMAIN}.txt" ]; then
@@ -772,9 +910,16 @@ main() {
             fi
             if [ -f params.txt ]; then
                 param_count=$(wc -l < params.txt 2>/dev/null || echo 0)
-                print_success "ParamSpider completed - Parameters found: $param_count"
+                if [ $exit_code -eq 0 ]; then
+                    print_success "ParamSpider completed - Parameters found: $param_count"
+                else
+                    # Was skipped, partial results
+                    print_info "ParamSpider - Parameters found (partial): $param_count"
+                fi
             else
-                print_success "ParamSpider completed"
+                if [ $exit_code -eq 0 ]; then
+                    print_success "ParamSpider completed"
+                fi
             fi
         else
             print_error "ParamSpider failed"
@@ -878,6 +1023,7 @@ main() {
         
         if [ -s live_hosts.txt ] && command -v dirsearch &> /dev/null; then
             print_info "Running Dirsearch..."
+            print_skip_hint
             if [ -f ~/Desktop/WORDLIST/ULTRA_MEGA.txt ]; then
                 dirsearch_cmd="dirsearch -l live_hosts.txt -o mar0xwan.txt -w ~/Desktop/WORDLIST/ULTRA_MEGA.txt -i 200 -e conf,config,bak,backup,swp,old,db,sql,asp,aspx,aspx,asp~,py,py~,rb,rb~,php,php~,bak,bkp,cache,cgi,conf,csv,html,inc,jar,js,json,jsp,jsp~,lock,log,rar,old,sql,sql.gz,http://sql.zip,sql.tar.gz,sql~,swp,swp~,tar,tar.bz2,tar.gz,txt,wadl,zip,.log,.xml,.js.,.json 2>/dev/null"
             else
@@ -885,12 +1031,17 @@ main() {
                 dirsearch_cmd="dirsearch -l live_hosts.txt -o mar0xwan.txt -i 200 2>/dev/null"
             fi
             
-            if eval "$dirsearch_cmd"; then
+            run_with_skip "dirsearch" "$dirsearch_cmd"
+            local exit_code=$?
+            if [ $exit_code -eq 0 ]; then
                 print_success "Dirsearch completed"
                 if [ -f mar0xwan.txt ]; then
                     dirsearch_count=$(grep -c "200" mar0xwan.txt 2>/dev/null || echo 0)
                     print_info "Dirsearch findings (200 status): $dirsearch_count"
                 fi
+            elif [ $exit_code -eq 2 ]; then
+                # Skipped - message already printed by run_with_skip
+                :
             else
                 print_error "Dirsearch failed"
                 failed_tools+=("dirsearch")
@@ -913,15 +1064,29 @@ main() {
         
         if [ -s javascript.txt ] && command -v secretfinder &> /dev/null; then
             print_info "Running SecretFinder on JavaScript files..."
+            print_skip_hint
             
             # Run secretfinder with direct file input (much faster than looping)
-            secretfinder -i javascript.txt -o cli > secrets_found.txt 2>/dev/null
+            run_with_skip "secretfinder" "secretfinder -i javascript.txt -o cli > secrets_found.txt 2>/dev/null"
+            local exit_code=$?
             
-            if [ -s secrets_found.txt ]; then
-                secret_count=$(wc -l < secrets_found.txt 2>/dev/null || echo 0)
-                print_success "SecretFinder completed - Found $secret_count potential secrets"
+            if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
+                if [ -s secrets_found.txt ]; then
+                    secret_count=$(wc -l < secrets_found.txt 2>/dev/null || echo 0)
+                    if [ $exit_code -eq 0 ]; then
+                        print_success "SecretFinder completed - Found $secret_count potential secrets"
+                    else
+                        print_info "SecretFinder - Found $secret_count potential secrets (partial)"
+                    fi
+                else
+                    if [ $exit_code -eq 0 ]; then
+                        print_warning "SecretFinder completed - No secrets found"
+                    fi
+                fi
             else
-                print_warning "SecretFinder completed - No secrets found"
+                print_error "SecretFinder failed"
+                failed_tools+=("secretfinder")
+                send_discord_error "$DOMAIN" "secretfinder" "Command execution failed"
             fi
         else
             if [ ! -s javascript.txt ]; then
