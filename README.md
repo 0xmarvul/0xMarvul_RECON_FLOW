@@ -17,7 +17,7 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 - **Smart Filtering**: Automatically categorizes JavaScript, PHP, JSON, and sensitive files
 - **BIGRAC Detection**: Identifies sensitive files like Swagger docs, API endpoints, config files, credentials, etc.
 - **Discord Notifications**: Real-time notifications via Discord webhooks (enabled by default)
-- **Graceful Skip Feature**: Press **Ctrl+S** to skip any long-running tool while preserving partial results
+- **Graceful Skip Feature**: Press **ENTER** to skip any long-running tool while preserving partial results
 - **Error Handling**: Continues execution even if some tools fail or timeout
 - **Color-Coded Output**: Easy-to-read terminal output with status indicators
 - **Progress Tracking**: Real-time progress updates with timestamps
@@ -33,10 +33,10 @@ When running any tool that might take a long time (like `waybackurls`, `katana`,
 
 ```
 [*] Running Waybackurls...
-    (Press CTRL+S to skip...)
+    (Press ENTER to skip...)
 ```
 
-**Press Ctrl+S** at any time during the tool's execution to:
+**Press ENTER** at any time during the tool's execution to:
 - **Stop that specific tool** immediately
 - **Preserve any partial results** already gathered
 - **Continue to the next tool** in the workflow
@@ -45,10 +45,10 @@ When running any tool that might take a long time (like `waybackurls`, `katana`,
 
 ```bash
 [*] Running Waybackurls...
-    (Press CTRL+S to skip...)
+    (Press ENTER to skip...)
 [!] Skipped: waybackurls (user interrupted) - partial results saved
 [*] Running Katana...
-    (Press CTRL+S to skip...)
+    (Press ENTER to skip...)
 ```
 
 ### Why This Feature?
