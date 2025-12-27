@@ -106,6 +106,9 @@ start_skip_listener() {
     # Set up the signal handler
     trap 'handle_skip_signal' SIGUSR1
     
+    # Get parent PID to send signal to
+    local parent_pid=$$
+    
     # Start background process to monitor for Ctrl+S (ASCII 19)
     (
         while true; do
@@ -114,7 +117,7 @@ start_skip_listener() {
                 # Check if it's Ctrl+S (ASCII 19, 0x13)
                 if [[ $(printf '%d' "'$char") -eq 19 ]]; then
                     # Send SIGUSR1 to parent process
-                    kill -SIGUSR1 $$ 2>/dev/null
+                    kill -SIGUSR1 "$parent_pid" 2>/dev/null
                 fi
             fi
         done
