@@ -559,25 +559,49 @@ main() {
         # Wait for all to complete
         print_info "Waiting for all subdomain tools to complete..."
         if [ -n "${pid_subfinder:-}" ]; then
-            wait $pid_subfinder 2>/dev/null && print_success "Subfinder completed" || print_warning "Subfinder failed or not installed"
+            if wait $pid_subfinder 2>/dev/null; then
+                print_success "Subfinder completed"
+            else
+                print_warning "Subfinder failed or not installed"
+                failed_tools+=("subfinder")
+                send_discord_error "$DOMAIN" "subfinder" "Command execution failed"
+            fi
         else
             print_warning "Subfinder not installed, skipping..."
         fi
         
         if [ -n "${pid_assetfinder:-}" ]; then
-            wait $pid_assetfinder 2>/dev/null && print_success "Assetfinder completed" || print_warning "Assetfinder failed or not installed"
+            if wait $pid_assetfinder 2>/dev/null; then
+                print_success "Assetfinder completed"
+            else
+                print_warning "Assetfinder failed or not installed"
+                failed_tools+=("assetfinder")
+                send_discord_error "$DOMAIN" "assetfinder" "Command execution failed"
+            fi
         else
             print_warning "Assetfinder not installed, skipping..."
         fi
         
         if [ -n "${pid_crtsh:-}" ]; then
-            wait $pid_crtsh 2>/dev/null && print_success "crt.sh completed" || print_warning "crt.sh failed"
+            if wait $pid_crtsh 2>/dev/null; then
+                print_success "crt.sh completed"
+            else
+                print_warning "crt.sh failed"
+                failed_tools+=("crt.sh")
+                send_discord_error "$DOMAIN" "crt.sh" "Connection failed"
+            fi
         else
             print_warning "curl or jq not installed, skipping crt.sh..."
         fi
         
         if [ -n "${pid_shrewdeye:-}" ]; then
-            wait $pid_shrewdeye 2>/dev/null && print_success "Shrewdeye completed" || print_warning "Shrewdeye failed"
+            if wait $pid_shrewdeye 2>/dev/null; then
+                print_success "Shrewdeye completed"
+            else
+                print_warning "Shrewdeye failed"
+                failed_tools+=("shrewdeye")
+                send_discord_error "$DOMAIN" "shrewdeye" "Connection failed"
+            fi
         else
             print_warning "curl not installed, skipping Shrewdeye..."
         fi
@@ -974,7 +998,11 @@ main() {
     
     # Step 4 continued: Merge URLs
     if [ -f wayback.txt ] || [ -f katana.txt ] || [ -f gau.txt ] || [ -f hakrawler.txt ]; then
-        cat wayback.txt katana.txt gau.txt hakrawler.txt 2>/dev/null | sort -u > allurls.txt
+        if [ "$ENABLE_MOREURLS" = true ]; then
+            cat wayback.txt katana.txt gau.txt hakrawler.txt 2>/dev/null | sort -u > allurls.txt
+        else
+            cat wayback.txt katana.txt 2>/dev/null | sort -u > allurls.txt
+        fi
         total_urls=$(wc -l < allurls.txt 2>/dev/null || echo 0)
         print_success "Total unique URLs collected: $total_urls"
         print_info "Check gospider_output/ directory manually for additional URLs"
