@@ -688,8 +688,8 @@ main() {
                             if command -v nmap &> /dev/null; then
                                 print_info "Running Nmap for detailed service detection..."
                                 print_skip_hint
-                                # Extract unique ports and format for nmap (validate numeric only)
-                                port_list=$(cut -d':' -f2 open_ports.txt | grep -E '^[0-9]+$' | sort -u | tr '\n' ',' | sed 's/,$//')
+                                # Extract unique ports and format for nmap (validate numeric and range)
+                                port_list=$(cut -d':' -f2 open_ports.txt | grep -E '^[0-9]+$' | awk '$1 >= 1 && $1 <= 65535' | sort -u | tr '\n' ',' | sed 's/,$//')
                                 if [ -n "$port_list" ]; then
                                     run_with_skip "nmap" "nmap -iL ips.txt -p \"$port_list\" -sV -oN ports_detailed.txt 2>/dev/null"
                                     local nmap_exit=$?
