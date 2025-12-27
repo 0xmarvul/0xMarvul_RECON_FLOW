@@ -28,10 +28,8 @@ ENABLE_GF=false
 ENABLE_PORT_SCAN=false
 
 # Skip functionality variables
-SKIP_REQUESTED=false
 CURRENT_TOOL_PID=""
 CURRENT_TOOL_NAME=""
-SKIP_LISTENER_PID=""
 
 # Banner function
 show_banner() {
@@ -95,48 +93,9 @@ print_step() {
     echo -e "${BOLD}${BLUE}═══════════════════════════════════════${NC}\n"
 }
 
-# Skip functionality
-# Signal handler for skip request
-handle_skip_signal() {
-    SKIP_REQUESTED=true
-}
-
-# Start background listener for Ctrl+S
-start_skip_listener() {
-    # Set up the signal handler
-    trap 'handle_skip_signal' SIGUSR1
-    
-    # Get parent PID to send signal to
-    local parent_pid=$$
-    
-    # Start background process to monitor for Ctrl+S (ASCII 19, hex 0x13)
-    (
-        while true; do
-            # Read single character with timeout (0.1s for responsive detection)
-            if IFS= read -rsn1 -t 0.1 char; then
-                # Check if it's Ctrl+S (0x13)
-                if [[ $char == $'\023' ]]; then
-                    # Send SIGUSR1 to parent process
-                    kill -SIGUSR1 "$parent_pid" 2>/dev/null
-                fi
-            fi
-        done
-    ) &
-    SKIP_LISTENER_PID=$!
-}
-
-# Stop the skip listener
-stop_skip_listener() {
-    if [ -n "$SKIP_LISTENER_PID" ]; then
-        kill "$SKIP_LISTENER_PID" 2>/dev/null
-        wait "$SKIP_LISTENER_PID" 2>/dev/null
-        SKIP_LISTENER_PID=""
-    fi
-}
-
 # Print skip hint
 print_skip_hint() {
-    echo -e "    ${YELLOW}(Press CTRL+S to skip...)${NC}"
+    echo -e "    ${YELLOW}(Press ENTER to skip...)${NC}"
 }
 
 # Run a command with skip support
@@ -146,24 +105,24 @@ run_with_skip() {
     local cmd="$@"
     
     CURRENT_TOOL_NAME="$tool_name"
-    SKIP_REQUESTED=false
     
     # Run the command in background
     eval "$cmd" &
     CURRENT_TOOL_PID=$!
     
-    # Wait for the process and check for skip periodically
+    # Monitor for ENTER key or process completion
     while kill -0 "$CURRENT_TOOL_PID" 2>/dev/null; do
-        if [ "$SKIP_REQUESTED" = true ]; then
-            kill "$CURRENT_TOOL_PID" 2>/dev/null
-            wait "$CURRENT_TOOL_PID" 2>/dev/null
-            print_warning "Skipped: $CURRENT_TOOL_NAME (user interrupted) - partial results saved"
-            SKIP_REQUESTED=false
-            CURRENT_TOOL_PID=""
-            CURRENT_TOOL_NAME=""
-            return 2  # Return special code for skip
+        # Check for ENTER key (non-blocking read with short timeout)
+        if read -t 0.5 -n 1 key 2>/dev/null; then
+            if [[ -z "$key" ]]; then  # ENTER key (empty when read with -n 1)
+                kill "$CURRENT_TOOL_PID" 2>/dev/null
+                wait "$CURRENT_TOOL_PID" 2>/dev/null
+                print_warning "Skipped: $CURRENT_TOOL_NAME (user interrupted) - partial results saved"
+                CURRENT_TOOL_PID=""
+                CURRENT_TOOL_NAME=""
+                return 2  # Return special code for skip
+            fi
         fi
-        sleep 0.1  # Short sleep for responsive skip detection
     done
     
     # Get exit code
@@ -530,9 +489,8 @@ main() {
     
     cd "$OUTPUT_DIR" || exit 1
     
-    # Start skip listener and set up cleanup
-    start_skip_listener
-    trap 'stop_skip_listener; exit' INT TERM EXIT
+    # Set up cleanup trap
+    trap 'exit' INT TERM EXIT
     
     # Array to track failed tools
     failed_tools=()
