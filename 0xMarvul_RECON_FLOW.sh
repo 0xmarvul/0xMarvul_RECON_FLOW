@@ -109,13 +109,13 @@ start_skip_listener() {
     # Get parent PID to send signal to
     local parent_pid=$$
     
-    # Start background process to monitor for Ctrl+S (ASCII 19)
+    # Start background process to monitor for Ctrl+S (ASCII 19, hex 0x13)
     (
         while true; do
             # Read single character with timeout
             if IFS= read -rsn1 -t 1 char; then
-                # Check if it's Ctrl+S (ASCII 19, 0x13)
-                if [[ $(printf '%d' "'$char") -eq 19 ]]; then
+                # Check if it's Ctrl+S (0x13)
+                if [[ $char == $'\023' ]]; then
                     # Send SIGUSR1 to parent process
                     kill -SIGUSR1 "$parent_pid" 2>/dev/null
                 fi
@@ -137,22 +137,6 @@ stop_skip_listener() {
 # Print skip hint
 print_skip_hint() {
     echo -e "    ${YELLOW}(Press CTRL+S to skip...)${NC}"
-}
-
-# Check if skip was requested and handle it
-check_and_handle_skip() {
-    if [ "$SKIP_REQUESTED" = true ]; then
-        # Kill the current tool process if it exists
-        if [ -n "$CURRENT_TOOL_PID" ]; then
-            kill "$CURRENT_TOOL_PID" 2>/dev/null
-            wait "$CURRENT_TOOL_PID" 2>/dev/null
-        fi
-        print_warning "Skipped: $CURRENT_TOOL_NAME (user interrupted) - partial results saved"
-        SKIP_REQUESTED=false
-        CURRENT_TOOL_PID=""
-        return 0  # Indicate skip occurred
-    fi
-    return 1  # No skip
 }
 
 # Run a command with skip support
