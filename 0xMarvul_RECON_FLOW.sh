@@ -1245,7 +1245,7 @@ main() {
         echo -e "  ${CYAN}►${NC} ${BOLD}gau.txt${NC} - URLs from GetAllUrls (GAU)"
         echo -e "  ${CYAN}►${NC} ${BOLD}hakrawler.txt${NC} - URLs from Hakrawler web crawler"
     fi
-    echo -e "  ${CYAN}►${NC} ${BOLD}allurls.txt${NC} - All unique URLs combined (wayback + katana)"
+    echo -e "  ${CYAN}►${NC} ${BOLD}allurls.txt${NC} - All unique URLs combined from all sources"
     echo -e "  ${CYAN}►${NC} ${BOLD}params.txt${NC} - Discovered parameters from ParamSpider"
     echo -e "  ${CYAN}►${NC} ${BOLD}javascript.txt${NC} - JavaScript file URLs (potential secrets, endpoints)"
     echo -e "  ${CYAN}►${NC} ${BOLD}php.txt${NC} - PHP file URLs (potential vulnerabilities)"
