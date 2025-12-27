@@ -114,7 +114,7 @@ run_with_skip() {
     while kill -0 "$CURRENT_TOOL_PID" 2>/dev/null; do
         # Check for ENTER key (non-blocking read with short timeout)
         if read -t 0.5 -n 1 key 2>/dev/null; then
-            if [[ "$key" == "" ]]; then  # ENTER key
+            if [[ -z "$key" ]]; then  # ENTER key (empty when read with -n 1)
                 kill "$CURRENT_TOOL_PID" 2>/dev/null
                 wait "$CURRENT_TOOL_PID" 2>/dev/null
                 print_warning "Skipped: $CURRENT_TOOL_NAME (user interrupted) - partial results saved"
