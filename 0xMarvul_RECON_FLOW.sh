@@ -112,8 +112,8 @@ start_skip_listener() {
     # Start background process to monitor for Ctrl+S (ASCII 19, hex 0x13)
     (
         while true; do
-            # Read single character with timeout
-            if IFS= read -rsn1 -t 1 char; then
+            # Read single character with timeout (0.1s for responsive detection)
+            if IFS= read -rsn1 -t 0.1 char; then
                 # Check if it's Ctrl+S (0x13)
                 if [[ $char == $'\023' ]]; then
                     # Send SIGUSR1 to parent process
@@ -163,7 +163,7 @@ run_with_skip() {
             CURRENT_TOOL_NAME=""
             return 2  # Return special code for skip
         fi
-        sleep 0.5
+        sleep 0.1  # Short sleep for responsive skip detection
     done
     
     # Get exit code
@@ -688,8 +688,8 @@ main() {
                             if command -v nmap &> /dev/null; then
                                 print_info "Running Nmap for detailed service detection..."
                                 print_skip_hint
-                                # Extract unique ports and format for nmap
-                                port_list=$(cut -d':' -f2 open_ports.txt | sort -u | tr '\n' ',' | sed 's/,$//')
+                                # Extract unique ports and format for nmap (validate numeric only)
+                                port_list=$(cut -d':' -f2 open_ports.txt | grep -E '^[0-9]+$' | sort -u | tr '\n' ',' | sed 's/,$//')
                                 if [ -n "$port_list" ]; then
                                     run_with_skip "nmap" "nmap -iL ips.txt -p \"$port_list\" -sV -oN ports_detailed.txt 2>/dev/null"
                                     local nmap_exit=$?
