@@ -542,7 +542,7 @@ The tool uses color-coded output for better readability:
 | `katana.txt` | Katana crawler results | Modern URL discovery |
 | `gau.txt` | URLs from GAU | Additional URL sources (if -moreurls used) |
 | `hakrawler.txt` | URLs from Hakrawler | Web crawler results (if -moreurls used) |
-| `allurls.txt` | All URLs combined | Complete URL list |
+| `allurls.txt` | All URLs combined | Combined URLs from URL discovery tools |
 | `params.txt` | Discovered parameters | Parameter fuzzing and testing |
 | `javascript.txt` | JavaScript files | Find secrets, API keys, endpoints |
 | `php.txt` | PHP files | Test for vulnerabilities |

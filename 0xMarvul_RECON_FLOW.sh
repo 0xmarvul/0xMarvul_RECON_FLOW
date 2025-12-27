@@ -950,7 +950,7 @@ main() {
             if command -v gau &> /dev/null; then
                 print_info "Running GAU..."
                 print_skip_hint
-                run_with_skip "gau" "echo '$DOMAIN' | gau > gau.txt 2>/dev/null"
+                run_with_skip "gau" "echo \"$DOMAIN\" | gau > gau.txt 2>/dev/null"
                 local exit_code=$?
                 if [ $exit_code -eq 0 ]; then
                     gau_count=$(wc -l < gau.txt 2>/dev/null || echo 0)
@@ -997,18 +997,26 @@ main() {
     fi
     
     # Step 4 continued: Merge URLs
-    if [ -f wayback.txt ] || [ -f katana.txt ] || [ -f gau.txt ] || [ -f hakrawler.txt ]; then
-        if [ "$ENABLE_MOREURLS" = true ]; then
+    if [ "$ENABLE_MOREURLS" = true ]; then
+        if [ -f wayback.txt ] || [ -f katana.txt ] || [ -f gau.txt ] || [ -f hakrawler.txt ]; then
             cat wayback.txt katana.txt gau.txt hakrawler.txt 2>/dev/null | sort -u > allurls.txt
+            total_urls=$(wc -l < allurls.txt 2>/dev/null || echo 0)
+            print_success "Total unique URLs collected: $total_urls"
+            print_info "Check gospider_output/ directory manually for additional URLs"
         else
-            cat wayback.txt katana.txt 2>/dev/null | sort -u > allurls.txt
+            print_warning "No URL files found to merge"
+            total_urls=0
         fi
-        total_urls=$(wc -l < allurls.txt 2>/dev/null || echo 0)
-        print_success "Total unique URLs collected: $total_urls"
-        print_info "Check gospider_output/ directory manually for additional URLs"
     else
-        print_warning "No URL files found to merge"
-        total_urls=0
+        if [ -f wayback.txt ] || [ -f katana.txt ]; then
+            cat wayback.txt katana.txt 2>/dev/null | sort -u > allurls.txt
+            total_urls=$(wc -l < allurls.txt 2>/dev/null || echo 0)
+            print_success "Total unique URLs collected: $total_urls"
+            print_info "Check gospider_output/ directory manually for additional URLs"
+        else
+            print_warning "No URL files found to merge"
+            total_urls=0
+        fi
     fi
     
     # Step 6: Parameter Discovery
