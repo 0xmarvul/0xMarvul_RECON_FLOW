@@ -7,10 +7,12 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 ## 🎯 Features
 
 - **Automated Subdomain Enumeration**: Uses multiple sources (Subfinder, Assetfinder, crt.sh, Shrewdeye)
+- **Parallel Subdomain Enumeration**: Optional parallel mode with `-parallel` flag for faster subdomain discovery
 - **Live Host Detection**: Identifies active web servers using httpx
 - **Subdomain Takeover Check**: Optional check for subdomain takeover vulnerabilities with Subzy (use `-takeover` flag)
 - **Technology Detection**: Detects web technologies, CMS, frameworks, and servers
 - **URL Discovery**: Gathers URLs from multiple sources (Gospider, Waybackurls, Katana)
+- **Extended URL Discovery**: Optional extra URL gathering with GAU and Hakrawler (use `-moreurls` flag)
 - **Parameter Discovery**: Discovers URL parameters using ParamSpider
 - **Directory Bruteforce**: Optional directory and file discovery with Dirsearch (use `-dir` flag)
 - **Secret Finding**: Optional secret discovery in JavaScript files with SecretFinder (use `-secret` flag)
@@ -172,6 +174,35 @@ This tool requires several external security tools to be installed. Below are th
     cp gf/examples/*.json ~/.gf/
     ```
 
+14. **GAU (GetAllUrls)** - Fetch known URLs from various sources (only needed if using `-moreurls` flag)
+    ```bash
+    go install github.com/lc/gau/v2/cmd/gau@latest
+    ```
+
+15. **Hakrawler** - Fast web crawler (only needed if using `-moreurls` flag)
+    ```bash
+    go install github.com/hakluke/hakrawler@latest
+    ```
+
+16. **Naabu** - Fast port scanner (only needed if using `-port` flag)
+    ```bash
+    go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+    ```
+
+17. **Nmap** - Network mapper (only needed if using `-port` flag)
+    ```bash
+    # Ubuntu/Debian
+    sudo apt-get install nmap
+    
+    # macOS
+    brew install nmap
+    ```
+
+18. **dnsx** - DNS toolkit (only needed if using `-port` flag)
+    ```bash
+    go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+    ```
+
 ### Quick Installation (All Go Tools)
 
 If you have Go installed, you can install all Go-based tools at once:
@@ -186,6 +217,10 @@ go install github.com/tomnomnom/waybackurls@latest
 go install github.com/projectdiscovery/katana/cmd/katana@latest
 go install -v github.com/LukaSikic/subzy@latest
 go install github.com/tomnomnom/gf@latest
+go install github.com/lc/gau/v2/cmd/gau@latest
+go install github.com/hakluke/hakrawler@latest
+go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
 
 # Install Python tools
 pip install paramspider dirsearch
@@ -235,10 +270,13 @@ Basic usage:
 
 ### Options
 
+- `-parallel` - Run subdomain enumeration tools in parallel (faster)
+- `-moreurls` - Enable extra URL gathering with GAU and Hakrawler
 - `-dir` - Enable directory bruteforce with dirsearch
 - `-secret` - Enable secret finding in JavaScript files with SecretFinder
 - `-takeover` - Enable subdomain takeover check with Subzy
 - `-gf` - Enable GF patterns to filter URLs for vulnerabilities
+- `-port` - Enable port scanning with Naabu and Nmap
 - `--webhook <url>` - Use custom Discord webhook URL
 - `--no-notify` - Disable Discord notifications
 
@@ -247,6 +285,21 @@ Basic usage:
 **Basic reconnaissance:**
 ```bash
 ./0xMarvul_RECON_FLOW.sh example.com
+```
+
+**With parallel subdomain enumeration:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -parallel
+```
+
+**With extra URL gathering:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -moreurls
+```
+
+**With parallel mode and extra URLs:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -parallel -moreurls
 ```
 
 **With directory bruteforce:**
@@ -269,9 +322,14 @@ Basic usage:
 ./0xMarvul_RECON_FLOW.sh example.com -gf
 ```
 
+**With port scanning:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -port
+```
+
 **With all optional features:**
 ```bash
-./0xMarvul_RECON_FLOW.sh example.com -dir -secret -takeover -gf
+./0xMarvul_RECON_FLOW.sh example.com -parallel -moreurls -dir -secret -takeover -gf -port
 ```
 
 **Custom webhook without notifications:**
@@ -321,6 +379,8 @@ target.com/
 ├── gospider_output/            # Directory containing Gospider results
 ├── wayback.txt                 # Historical URLs from Wayback Machine
 ├── katana.txt                  # URLs discovered by Katana
+├── gau.txt                     # URLs from GetAllUrls (only if -moreurls flag used)
+├── hakrawler.txt               # URLs from Hakrawler (only if -moreurls flag used)
 ├── allurls.txt                 # All unique URLs combined
 ├── params.txt                  # Discovered parameters from ParamSpider
 ├── javascript.txt              # JavaScript file URLs
@@ -338,7 +398,9 @@ target.com/
 │   └── ssti.txt                # URLs potentially vulnerable to SSTI
 ├── secrets_output/             # Directory containing secrets found in JS files (only if -secret flag used)
 │   └── secrets_found.txt       # Secrets found by SecretFinder
-└── mar0xwan.txt                # Dirsearch results (only if -dir flag used)
+├── mar0xwan.txt                # Dirsearch results (only if -dir flag used)
+├── open_ports.txt              # Open ports discovered by Naabu (only if -port flag used)
+└── ports_detailed.txt          # Detailed port scan with service detection (only if -port flag used)
 ```
 
 ## 🔔 Discord Notifications
@@ -478,6 +540,8 @@ The tool uses color-coded output for better readability:
 | `gospider_output/` | Gospider crawl results | Deep URL discovery |
 | `wayback.txt` | Wayback Machine URLs | Historical endpoints |
 | `katana.txt` | Katana crawler results | Modern URL discovery |
+| `gau.txt` | URLs from GAU | Additional URL sources (if -moreurls used) |
+| `hakrawler.txt` | URLs from Hakrawler | Web crawler results (if -moreurls used) |
 | `allurls.txt` | All URLs combined | Complete URL list |
 | `params.txt` | Discovered parameters | Parameter fuzzing and testing |
 | `javascript.txt` | JavaScript files | Find secrets, API keys, endpoints |
