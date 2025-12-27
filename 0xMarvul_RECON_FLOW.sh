@@ -26,6 +26,8 @@ ENABLE_SECRETFINDER=false
 ENABLE_TAKEOVER=false
 ENABLE_GF=false
 ENABLE_PORT_SCAN=false
+ENABLE_PARALLEL=false
+ENABLE_MOREURLS=false
 
 # Skip functionality variables
 CURRENT_TOOL_PID=""
@@ -355,6 +357,21 @@ check_dependencies() {
         fi
     fi
     
+    if [ "$ENABLE_MOREURLS" = true ]; then
+        if command -v gau &> /dev/null; then
+            print_success "gau is installed"
+        else
+            print_warning "gau is NOT installed (required for -moreurls flag)"
+            optional_tools+=("gau")
+        fi
+        if command -v hakrawler &> /dev/null; then
+            print_success "hakrawler is installed"
+        else
+            print_warning "hakrawler is NOT installed (required for -moreurls flag)"
+            optional_tools+=("hakrawler")
+        fi
+    fi
+    
     if [ ${#missing_tools[@]} -gt 0 ]; then
         print_warning "Some tools are missing. Script will continue with available tools."
         print_info "Missing tools: ${missing_tools[*]}"
@@ -376,6 +393,8 @@ usage() {
     echo -e "${YELLOW}Usage: $0 <domain> [options]${NC}"
     echo ""
     echo -e "${BOLD}Options:${NC}"
+    echo -e "  ${CYAN}-parallel${NC}         Run subdomain enumeration tools in parallel (faster)"
+    echo -e "  ${CYAN}-moreurls${NC}         Enable extra URL gathering with GAU and Hakrawler"
     echo -e "  ${CYAN}-dir${NC}              Enable directory bruteforce with dirsearch"
     echo -e "  ${CYAN}-secret${NC}           Enable secret finding in JavaScript files"
     echo -e "  ${CYAN}-takeover${NC}         Enable subdomain takeover check with Subzy"
@@ -386,11 +405,15 @@ usage() {
     echo ""
     echo -e "${BOLD}Examples:${NC}"
     echo -e "  ${CYAN}$0 target.com${NC}"
+    echo -e "  ${CYAN}$0 target.com -parallel${NC}"
+    echo -e "  ${CYAN}$0 target.com -moreurls${NC}"
+    echo -e "  ${CYAN}$0 target.com -parallel -moreurls${NC}"
     echo -e "  ${CYAN}$0 target.com -dir${NC}"
     echo -e "  ${CYAN}$0 target.com -gf${NC}"
     echo -e "  ${CYAN}$0 target.com -secret${NC}"
     echo -e "  ${CYAN}$0 target.com -takeover${NC}"
     echo -e "  ${CYAN}$0 target.com -port${NC}"
+    echo -e "  ${CYAN}$0 target.com -parallel -moreurls -dir -gf${NC}"
     echo -e "  ${CYAN}$0 target.com -dir -gf -secret -takeover -port${NC}"
     echo ""
     exit 1
@@ -403,6 +426,14 @@ main() {
     
     while [[ $# -gt 0 ]]; do
         case $1 in
+            -parallel)
+                ENABLE_PARALLEL=true
+                shift
+                ;;
+            -moreurls)
+                ENABLE_MOREURLS=true
+                shift
+                ;;
             -dir)
                 ENABLE_DIRSEARCH=true
                 shift
@@ -499,85 +530,165 @@ main() {
     print_step "Step 1: Subdomain Enumeration"
     print_info "Timestamp: $(get_timestamp)"
     
-    # Subfinder
-    if command -v subfinder &> /dev/null; then
-        print_info "Running Subfinder..."
-        if subfinder -d "$DOMAIN" -o subs_subfinder.txt 2>/dev/null; then
-            print_success "Subfinder completed"
-        else
-            print_error "Subfinder failed"
-            failed_tools+=("subfinder")
-            send_discord_error "$DOMAIN" "subfinder" "Command execution failed"
-        fi
-    else
-        print_warning "Subfinder not installed, skipping..."
-    fi
-    
-    # Assetfinder
-    if command -v assetfinder &> /dev/null; then
-        print_info "Running Assetfinder..."
-        if assetfinder --subs-only "$DOMAIN" > subs_assetfinder.txt 2>/dev/null; then
-            print_success "Assetfinder completed"
-        else
-            print_error "Assetfinder failed"
-            failed_tools+=("assetfinder")
-            send_discord_error "$DOMAIN" "assetfinder" "Command execution failed"
-        fi
-    else
-        print_warning "Assetfinder not installed, skipping..."
-    fi
-    
-    # crt.sh
-    if command -v curl &> /dev/null && command -v jq &> /dev/null; then
-        print_info "Running crt.sh..."
-        crt_response=$(timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN&output=json" 2>/dev/null)
+    if [ "$ENABLE_PARALLEL" = true ]; then
+        print_info "Running subdomain enumeration in parallel mode..."
         
-        # Check if response is valid JSON before parsing
-        if echo "$crt_response" | jq -e . >/dev/null 2>&1; then
-            echo "$crt_response" | jq -r '.[].name_value // empty' | sed 's/^\*\.//' | sort -u > subs_crtsh.txt
-            if [ ! -s subs_crtsh.txt ]; then
-                print_warning "crt.sh returned no results"
+        # Start all tools in background
+        if command -v subfinder &> /dev/null; then
+            subfinder -d "$DOMAIN" -o subs_subfinder.txt 2>/dev/null &
+            pid_subfinder=$!
+        fi
+        
+        if command -v assetfinder &> /dev/null; then
+            assetfinder --subs-only "$DOMAIN" > subs_assetfinder.txt 2>/dev/null &
+            pid_assetfinder=$!
+        fi
+        
+        # crt.sh with timeout
+        if command -v curl &> /dev/null && command -v jq &> /dev/null; then
+            (timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN&output=json" 2>/dev/null | jq -r '.[].name_value // empty' 2>/dev/null | sed 's/^\*\.//' | sort -u > subs_crtsh.txt) &
+            pid_crtsh=$!
+        fi
+        
+        # shrewdeye with timeout
+        if command -v curl &> /dev/null; then
+            (timeout 30 curl -s "https://shrewdeye.app/domains/$DOMAIN.txt" > subs_shrewdeye.txt 2>/dev/null) &
+            pid_shrewdeye=$!
+        fi
+        
+        # Wait for all to complete
+        print_info "Waiting for all subdomain tools to complete..."
+        if [ -n "${pid_subfinder:-}" ]; then
+            if wait $pid_subfinder 2>/dev/null; then
+                print_success "Subfinder completed"
             else
-                print_success "crt.sh completed"
+                print_warning "Subfinder failed or not installed"
+                failed_tools+=("subfinder")
+                send_discord_error "$DOMAIN" "subfinder" "Command execution failed"
             fi
         else
-            print_warning "crt.sh returned invalid response, trying alternative..."
-            # Alternative: Parse HTML response
-            # Escape domain for safe use in regex - escape all special regex characters
-            # Using ] at start of character class so it doesn't need escaping
-            local domain_escaped=$(printf '%s\n' "$DOMAIN" | sed 's/[][\\.*^$()+?{|}]/\\&/g')
-            if timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN" 2>/dev/null | grep -oE "[a-zA-Z0-9._-]+\\.$domain_escaped" | sort -u > subs_crtsh.txt; then
-                if [ ! -s subs_crtsh.txt ]; then
-                    print_warning "crt.sh returned no results"
-                else
-                    print_success "crt.sh completed (via HTML fallback)"
-                fi
+            print_warning "Subfinder not installed, skipping..."
+        fi
+        
+        if [ -n "${pid_assetfinder:-}" ]; then
+            if wait $pid_assetfinder 2>/dev/null; then
+                print_success "Assetfinder completed"
             else
-                print_error "crt.sh failed"
+                print_warning "Assetfinder failed or not installed"
+                failed_tools+=("assetfinder")
+                send_discord_error "$DOMAIN" "assetfinder" "Command execution failed"
+            fi
+        else
+            print_warning "Assetfinder not installed, skipping..."
+        fi
+        
+        if [ -n "${pid_crtsh:-}" ]; then
+            if wait $pid_crtsh 2>/dev/null; then
+                print_success "crt.sh completed"
+            else
+                print_warning "crt.sh failed"
                 failed_tools+=("crt.sh")
                 send_discord_error "$DOMAIN" "crt.sh" "Connection failed"
             fi
+        else
+            print_warning "curl or jq not installed, skipping crt.sh..."
         fi
-    else
-        print_warning "curl or jq not installed, skipping crt.sh..."
-    fi
-    
-    # Shrewdeye
-    if command -v curl &> /dev/null; then
-        print_info "Running Shrewdeye..."
-        if timeout 30 curl -s "https://shrewdeye.app/domains/$DOMAIN.txt" > subs_shrewdeye.txt 2>/dev/null; then
-            if [ ! -s subs_shrewdeye.txt ]; then
-                print_warning "Shrewdeye returned no results"
-            else
+        
+        if [ -n "${pid_shrewdeye:-}" ]; then
+            if wait $pid_shrewdeye 2>/dev/null; then
                 print_success "Shrewdeye completed"
+            else
+                print_warning "Shrewdeye failed"
+                failed_tools+=("shrewdeye")
+                send_discord_error "$DOMAIN" "shrewdeye" "Connection failed"
             fi
         else
-            print_error "Shrewdeye failed"
-            failed_tools+=("shrewdeye")
-            send_discord_error "$DOMAIN" "shrewdeye" "Connection failed"
+            print_warning "curl not installed, skipping Shrewdeye..."
         fi
+        
+        print_success "Parallel subdomain enumeration completed!"
     else
-        print_warning "curl not installed, skipping Shrewdeye..."
+        # Sequential mode (existing code)
+        # Subfinder
+        if command -v subfinder &> /dev/null; then
+            print_info "Running Subfinder..."
+            if subfinder -d "$DOMAIN" -o subs_subfinder.txt 2>/dev/null; then
+                print_success "Subfinder completed"
+            else
+                print_error "Subfinder failed"
+                failed_tools+=("subfinder")
+                send_discord_error "$DOMAIN" "subfinder" "Command execution failed"
+            fi
+        else
+            print_warning "Subfinder not installed, skipping..."
+        fi
+        
+        # Assetfinder
+        if command -v assetfinder &> /dev/null; then
+            print_info "Running Assetfinder..."
+            if assetfinder --subs-only "$DOMAIN" > subs_assetfinder.txt 2>/dev/null; then
+                print_success "Assetfinder completed"
+            else
+                print_error "Assetfinder failed"
+                failed_tools+=("assetfinder")
+                send_discord_error "$DOMAIN" "assetfinder" "Command execution failed"
+            fi
+        else
+            print_warning "Assetfinder not installed, skipping..."
+        fi
+        
+        # crt.sh
+        if command -v curl &> /dev/null && command -v jq &> /dev/null; then
+            print_info "Running crt.sh..."
+            crt_response=$(timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN&output=json" 2>/dev/null)
+            
+            # Check if response is valid JSON before parsing
+            if echo "$crt_response" | jq -e . >/dev/null 2>&1; then
+                echo "$crt_response" | jq -r '.[].name_value // empty' | sed 's/^\*\.//' | sort -u > subs_crtsh.txt
+                if [ ! -s subs_crtsh.txt ]; then
+                    print_warning "crt.sh returned no results"
+                else
+                    print_success "crt.sh completed"
+                fi
+            else
+                print_warning "crt.sh returned invalid response, trying alternative..."
+                # Alternative: Parse HTML response
+                # Escape domain for safe use in regex - escape all special regex characters
+                # Using ] at start of character class so it doesn't need escaping
+                local domain_escaped=$(printf '%s\n' "$DOMAIN" | sed 's/[][\\.*^$()+?{|}]/\\&/g')
+                if timeout 30 curl -s "https://crt.sh/?q=%25.$DOMAIN" 2>/dev/null | grep -oE "[a-zA-Z0-9._-]+\\.$domain_escaped" | sort -u > subs_crtsh.txt; then
+                    if [ ! -s subs_crtsh.txt ]; then
+                        print_warning "crt.sh returned no results"
+                    else
+                        print_success "crt.sh completed (via HTML fallback)"
+                    fi
+                else
+                    print_error "crt.sh failed"
+                    failed_tools+=("crt.sh")
+                    send_discord_error "$DOMAIN" "crt.sh" "Connection failed"
+                fi
+            fi
+        else
+            print_warning "curl or jq not installed, skipping crt.sh..."
+        fi
+        
+        # Shrewdeye
+        if command -v curl &> /dev/null; then
+            print_info "Running Shrewdeye..."
+            if timeout 30 curl -s "https://shrewdeye.app/domains/$DOMAIN.txt" > subs_shrewdeye.txt 2>/dev/null; then
+                if [ ! -s subs_shrewdeye.txt ]; then
+                    print_warning "Shrewdeye returned no results"
+                else
+                    print_success "Shrewdeye completed"
+                fi
+            else
+                print_error "Shrewdeye failed"
+                failed_tools+=("shrewdeye")
+                send_discord_error "$DOMAIN" "shrewdeye" "Connection failed"
+            fi
+        else
+            print_warning "curl not installed, skipping Shrewdeye..."
+        fi
     fi
     
     # Step 2: Aggregate and Deduplicate
@@ -833,19 +944,79 @@ main() {
         else
             print_warning "Katana not installed, skipping..."
         fi
+        
+        # GAU (Optional with -moreurls flag)
+        if [ "$ENABLE_MOREURLS" = true ]; then
+            if command -v gau &> /dev/null; then
+                print_info "Running GAU..."
+                print_skip_hint
+                run_with_skip "gau" "echo \"$DOMAIN\" | gau > gau.txt 2>/dev/null"
+                local exit_code=$?
+                if [ $exit_code -eq 0 ]; then
+                    gau_count=$(wc -l < gau.txt 2>/dev/null || echo 0)
+                    print_success "GAU completed - URLs found: $gau_count"
+                elif [ $exit_code -eq 2 ]; then
+                    # Skipped - message already printed
+                    :
+                else
+                    print_error "GAU failed"
+                    failed_tools+=("gau")
+                    send_discord_error "$DOMAIN" "gau" "Command execution failed"
+                fi
+            else
+                print_warning "GAU not installed, skipping..."
+            fi
+            
+            # Hakrawler (Optional with -moreurls flag)
+            if [ -s live_hosts.txt ] && command -v hakrawler &> /dev/null; then
+                print_info "Running Hakrawler..."
+                print_skip_hint
+                run_with_skip "hakrawler" "cat live_hosts.txt | hakrawler > hakrawler.txt 2>/dev/null"
+                local exit_code=$?
+                if [ $exit_code -eq 0 ]; then
+                    hakrawler_count=$(wc -l < hakrawler.txt 2>/dev/null || echo 0)
+                    print_success "Hakrawler completed - URLs found: $hakrawler_count"
+                elif [ $exit_code -eq 2 ]; then
+                    # Skipped - message already printed
+                    :
+                else
+                    print_error "Hakrawler failed"
+                    failed_tools+=("hakrawler")
+                    send_discord_error "$DOMAIN" "hakrawler" "Command execution failed"
+                fi
+            else
+                if [ ! -s live_hosts.txt ]; then
+                    print_warning "No live hosts for Hakrawler"
+                else
+                    print_warning "Hakrawler not installed, skipping..."
+                fi
+            fi
+        fi
     else
         print_warning "No live hosts found, skipping URL gathering..."
     fi
     
     # Step 4 continued: Merge URLs
-    if [ -f wayback.txt ] || [ -f katana.txt ]; then
-        cat wayback.txt katana.txt 2>/dev/null | sort -u > allurls.txt
-        total_urls=$(wc -l < allurls.txt 2>/dev/null || echo 0)
-        print_success "Total unique URLs collected: $total_urls"
-        print_info "Check gospider_output/ directory manually for additional URLs"
+    if [ "$ENABLE_MOREURLS" = true ]; then
+        if [ -f wayback.txt ] || [ -f katana.txt ] || [ -f gau.txt ] || [ -f hakrawler.txt ]; then
+            cat wayback.txt katana.txt gau.txt hakrawler.txt 2>/dev/null | sort -u > allurls.txt
+            total_urls=$(wc -l < allurls.txt 2>/dev/null || echo 0)
+            print_success "Total unique URLs collected: $total_urls"
+            print_info "Check gospider_output/ directory manually for additional URLs"
+        else
+            print_warning "No URL files found to merge"
+            total_urls=0
+        fi
     else
-        print_warning "No URL files found to merge"
-        total_urls=0
+        if [ -f wayback.txt ] || [ -f katana.txt ]; then
+            cat wayback.txt katana.txt 2>/dev/null | sort -u > allurls.txt
+            total_urls=$(wc -l < allurls.txt 2>/dev/null || echo 0)
+            print_success "Total unique URLs collected: $total_urls"
+            print_info "Check gospider_output/ directory manually for additional URLs"
+        else
+            print_warning "No URL files found to merge"
+            total_urls=0
+        fi
     fi
     
     # Step 6: Parameter Discovery
@@ -1106,7 +1277,11 @@ main() {
     echo -e "  ${CYAN}►${NC} ${BOLD}gospider_output/${NC} - Directory containing crawled URLs from Gospider"
     echo -e "  ${CYAN}►${NC} ${BOLD}wayback.txt${NC} - Historical URLs from Wayback Machine"
     echo -e "  ${CYAN}►${NC} ${BOLD}katana.txt${NC} - URLs discovered by Katana crawler"
-    echo -e "  ${CYAN}►${NC} ${BOLD}allurls.txt${NC} - All unique URLs combined (wayback + katana)"
+    if [ "$ENABLE_MOREURLS" = true ]; then
+        echo -e "  ${CYAN}►${NC} ${BOLD}gau.txt${NC} - URLs from GetAllUrls (GAU)"
+        echo -e "  ${CYAN}►${NC} ${BOLD}hakrawler.txt${NC} - URLs from Hakrawler web crawler"
+    fi
+    echo -e "  ${CYAN}►${NC} ${BOLD}allurls.txt${NC} - All unique URLs combined from all sources"
     echo -e "  ${CYAN}►${NC} ${BOLD}params.txt${NC} - Discovered parameters from ParamSpider"
     echo -e "  ${CYAN}►${NC} ${BOLD}javascript.txt${NC} - JavaScript file URLs (potential secrets, endpoints)"
     echo -e "  ${CYAN}►${NC} ${BOLD}php.txt${NC} - PHP file URLs (potential vulnerabilities)"
