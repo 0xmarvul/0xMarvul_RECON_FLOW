@@ -1109,9 +1109,9 @@ main() {
             mkdir -p grep_results
             
             # Also combine Gospider output if exists
-            if [ -d gospider_output ] && [ -n "$(ls -A gospider_output 2>/dev/null)" ]; then
+            if [ -d gospider_output ] && [ -n "$(find gospider_output -maxdepth 1 -type f -print -quit 2>/dev/null)" ]; then
                 print_info "Combining Gospider output..."
-                cat gospider_output/* 2>/dev/null | grep -oE "https?://[^ \"']+" | sort -u > gospider_urls.txt
+                find gospider_output -type f -exec cat {} + 2>/dev/null | grep -oE "https?://[^ \"']+" | sort -u > gospider_urls.txt
                 cat allurls.txt gospider_urls.txt 2>/dev/null | sort -u > all_urls_combined.txt
                 INPUT_FILE="all_urls_combined.txt"
             else
@@ -1192,7 +1192,7 @@ main() {
             
             # Combine all unique findings
             print_info "Combining all results..."
-            find grep_results/ -name '*.txt' ! -name 'ALL_JUICY.txt' -exec cat {} + 2>/dev/null | sort -u > grep_results/ALL_JUICY.txt
+            find grep_results/ -type f -name '*.txt' ! -name 'ALL_JUICY.txt' -exec cat {} + 2>/dev/null | sort -u > grep_results/ALL_JUICY.txt
             total_juicy=$(wc -l < grep_results/ALL_JUICY.txt 2>/dev/null || echo 0)
             
             # Remove empty files (but check total_juicy first to avoid deleting ALL_JUICY.txt prematurely)
