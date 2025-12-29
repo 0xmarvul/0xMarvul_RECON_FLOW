@@ -28,6 +28,7 @@ ENABLE_GF=false
 ENABLE_PORT_SCAN=false
 ENABLE_PARALLEL=false
 ENABLE_MOREURLS=false
+ENABLE_GREP=false
 
 # Skip functionality variables
 CURRENT_TOOL_PID=""
@@ -400,6 +401,7 @@ usage() {
     echo -e "  ${CYAN}-takeover${NC}         Enable subdomain takeover check with Subzy"
     echo -e "  ${CYAN}-gf${NC}               Enable GF patterns to filter URLs for vulnerabilities"
     echo -e "  ${CYAN}-port${NC}             Enable port scanning with Naabu and Nmap"
+    echo -e "  ${CYAN}-grep${NC}             Extract juicy URLs by keywords (configs, backups, secrets, etc.)"
     echo -e "  ${CYAN}--webhook <url>${NC}   Use custom Discord webhook URL"
     echo -e "  ${CYAN}--no-notify${NC}       Disable Discord notifications"
     echo ""
@@ -410,6 +412,8 @@ usage() {
     echo -e "  ${CYAN}$0 target.com -parallel -moreurls${NC}"
     echo -e "  ${CYAN}$0 target.com -dir${NC}"
     echo -e "  ${CYAN}$0 target.com -gf${NC}"
+    echo -e "  ${CYAN}$0 target.com -grep${NC}"
+    echo -e "  ${CYAN}$0 target.com -gf -grep${NC}"
     echo -e "  ${CYAN}$0 target.com -secret${NC}"
     echo -e "  ${CYAN}$0 target.com -takeover${NC}"
     echo -e "  ${CYAN}$0 target.com -port${NC}"
@@ -448,6 +452,10 @@ main() {
                 ;;
             -gf)
                 ENABLE_GF=true
+                shift
+                ;;
+            -grep)
+                ENABLE_GREP=true
                 shift
                 ;;
             -port)
@@ -1091,6 +1099,133 @@ main() {
         print_warning "No URLs to filter"
     fi
     
+    # Grep Juicy URLs (Optional)
+    if [ "$ENABLE_GREP" = true ]; then
+        print_step "Grep Juicy URLs (-grep)"
+        print_info "Timestamp: $(get_timestamp)"
+        
+        if [ -s allurls.txt ]; then
+            # Create grep results directory
+            mkdir -p grep_results
+            
+            # Also combine Gospider output if exists
+            if [ -d gospider_output ] && [ -n "$(find gospider_output -maxdepth 1 -type f -print -quit 2>/dev/null)" ]; then
+                print_info "Combining Gospider output..."
+                find gospider_output -type f -exec cat {} + 2>/dev/null | grep -oE "https?://[^ \"']+" | sort -u > gospider_urls.txt
+                cat allurls.txt gospider_urls.txt 2>/dev/null | sort -u > all_urls_combined.txt
+                INPUT_FILE="all_urls_combined.txt"
+            else
+                INPUT_FILE="allurls.txt"
+            fi
+            
+            print_info "Grepping for juicy URLs..."
+            
+            # Config files
+            print_info "  → Config files..."
+            grep -iE "(\.config|\.conf|\.cfg|\.ini|\.env|\.properties|\.yaml|\.yml|\.toml|\.xml|settings|configuration)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/config.txt
+            config_count=$(wc -l < grep_results/config.txt 2>/dev/null || echo 0)
+            
+            # Backup files
+            print_info "  → Backup files..."
+            grep -iE "\.(bak|backup|old|orig|original|copy|tmp|temp|swp|swo|save|~|zip|tar|gz|rar|7z)(\?|$|&)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/backup.txt
+            backup_count=$(wc -l < grep_results/backup.txt 2>/dev/null || echo 0)
+            
+            # Database files
+            print_info "  → Database files..."
+            grep -iE "(\.sql|\.sqlite|\.sqlite3|\.db|\.mdb|\.dump|mysql|postgres|mongodb|database|phpmyadmin)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/database.txt
+            database_count=$(wc -l < grep_results/database.txt 2>/dev/null || echo 0)
+            
+            # Secrets & Credentials
+            print_info "  → Secrets & credentials..."
+            grep -iE "(password|passwd|pwd|secret|token|api_key|apikey|api-key|auth_token|access_token|private_key|credential|htpasswd|htaccess)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/secrets.txt
+            secrets_count=$(wc -l < grep_results/secrets.txt 2>/dev/null || echo 0)
+            
+            # Source code exposure
+            print_info "  → Source code exposure..."
+            grep -iE "(\.git|\.svn|\.hg|\.bzr|\.gitignore|\.gitconfig|\.gitattributes)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/sourcecode.txt
+            sourcecode_count=$(wc -l < grep_results/sourcecode.txt 2>/dev/null || echo 0)
+            
+            # API & Documentation
+            print_info "  → API & documentation..."
+            grep -iE "(swagger|openapi|api-docs|graphql|graphiql|/api/|/v1/|/v2/|/v3/|rest/|wsdl|raml)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/api.txt
+            api_count=$(wc -l < grep_results/api.txt 2>/dev/null || echo 0)
+            
+            # Admin panels
+            print_info "  → Admin panels..."
+            grep -iE "(admin|administrator|dashboard|cpanel|webadmin|manager|console|portal|backend|wp-admin|wp-login|wp-content|phpmyadmin|adminer)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/admin.txt
+            admin_count=$(wc -l < grep_results/admin.txt 2>/dev/null || echo 0)
+            
+            # Debug & Development
+            print_info "  → Debug & development..."
+            grep -iE "(debug|trace|test|phpinfo|server-status|server-info|\.dev\.|\.staging\.|\.uat\.|\.local\.|\.test\.)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/debug.txt
+            debug_count=$(wc -l < grep_results/debug.txt 2>/dev/null || echo 0)
+            
+            # Log files
+            print_info "  → Log files..."
+            grep -iE "(\.log|/logs/|/log/|error\.log|access\.log|debug\.log|audit\.log)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/logs.txt
+            logs_count=$(wc -l < grep_results/logs.txt 2>/dev/null || echo 0)
+            
+            # Upload directories
+            print_info "  → Upload directories..."
+            grep -iE "(upload|uploads|file|files|attachment|attachments|media|assets|/tmp/|/temp/|/cache/)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/uploads.txt
+            uploads_count=$(wc -l < grep_results/uploads.txt 2>/dev/null || echo 0)
+            
+            # Keys & Certificates
+            print_info "  → Keys & certificates..."
+            grep -iE "\.(pem|key|crt|cer|p12|pfx|jks|keystore|pub|ppk)(\?|$|&)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/keys.txt
+            keys_count=$(wc -l < grep_results/keys.txt 2>/dev/null || echo 0)
+            
+            # Sensitive data files
+            print_info "  → Sensitive data files..."
+            grep -iE "(\.csv|\.xls|\.xlsx|\.doc|\.docx|\.pdf|data\.json|users\.json|export|dump)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/datafiles.txt
+            datafiles_count=$(wc -l < grep_results/datafiles.txt 2>/dev/null || echo 0)
+            
+            # Internal/Private
+            print_info "  → Internal & private..."
+            grep -iE "(internal|private|hidden|secret|confidential|restricted|/priv/|/private/)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/internal.txt
+            internal_count=$(wc -l < grep_results/internal.txt 2>/dev/null || echo 0)
+            
+            # Cloud & AWS
+            print_info "  → Cloud & AWS..."
+            grep -iE "(aws|s3\.|amazonaws|azure|blob\.core|gcp|googleusercontent|firebase|digitalocean|bucket)" "$INPUT_FILE" 2>/dev/null | sort -u > grep_results/cloud.txt
+            cloud_count=$(wc -l < grep_results/cloud.txt 2>/dev/null || echo 0)
+            
+            # Combine all unique findings
+            print_info "Combining all results..."
+            find grep_results/ -type f -name '*.txt' ! -name 'ALL_JUICY.txt' -exec cat {} + 2>/dev/null | sort -u > grep_results/ALL_JUICY.txt
+            total_juicy=$(wc -l < grep_results/ALL_JUICY.txt 2>/dev/null || echo 0)
+            
+            # Remove empty files (but check total_juicy first to avoid deleting ALL_JUICY.txt prematurely)
+            find grep_results/ -name '*.txt' ! -name 'ALL_JUICY.txt' -type f -empty -delete 2>/dev/null
+            
+            # Print summary
+            print_success "Grep Juicy URLs completed!"
+            echo ""
+            echo -e "    ${GREEN}►${NC} Config files:      ${BOLD}$config_count${NC}"
+            echo -e "    ${GREEN}►${NC} Backup files:      ${BOLD}$backup_count${NC}"
+            echo -e "    ${GREEN}►${NC} Database files:    ${BOLD}$database_count${NC}"
+            echo -e "    ${GREEN}►${NC} Secrets:           ${BOLD}$secrets_count${NC}"
+            echo -e "    ${GREEN}►${NC} Source code:       ${BOLD}$sourcecode_count${NC}"
+            echo -e "    ${GREEN}►${NC} API docs:          ${BOLD}$api_count${NC}"
+            echo -e "    ${GREEN}►${NC} Admin panels:      ${BOLD}$admin_count${NC}"
+            echo -e "    ${GREEN}►${NC} Debug/Dev:         ${BOLD}$debug_count${NC}"
+            echo -e "    ${GREEN}►${NC} Log files:         ${BOLD}$logs_count${NC}"
+            echo -e "    ${GREEN}►${NC} Uploads:           ${BOLD}$uploads_count${NC}"
+            echo -e "    ${GREEN}►${NC} Keys/Certs:        ${BOLD}$keys_count${NC}"
+            echo -e "    ${GREEN}►${NC} Data files:        ${BOLD}$datafiles_count${NC}"
+            echo -e "    ${GREEN}►${NC} Internal:          ${BOLD}$internal_count${NC}"
+            echo -e "    ${GREEN}►${NC} Cloud/AWS:         ${BOLD}$cloud_count${NC}"
+            echo ""
+            echo -e "    ${CYAN}═══════════════════════════════════${NC}"
+            echo -e "    ${BOLD}TOTAL JUICY URLs: $total_juicy${NC}"
+            echo -e "    ${CYAN}═══════════════════════════════════${NC}"
+            echo -e "    ${GREEN}►${NC} Results saved in: ${BOLD}grep_results/${NC}"
+            
+        else
+            print_warning "No URLs to grep (allurls.txt is empty)"
+        fi
+    fi
+    
     # Step 9: GF Patterns (Optional)
     if [ "$ENABLE_GF" = true ]; then
         print_step "Step 9: GF Patterns (-gf)"
@@ -1302,6 +1437,24 @@ main() {
     fi
     if [ "$ENABLE_GF" = true ]; then
         echo -e "  ${CYAN}►${NC} ${BOLD}gf/${NC} - Folder containing GF pattern results (xss.txt, sqli.txt, ssrf.txt, etc.)"
+    fi
+    if [ "$ENABLE_GREP" = true ]; then
+        echo -e "  ${CYAN}►${NC} ${BOLD}grep_results/${NC} - Folder containing juicy URLs by category:"
+        echo -e "      ${CYAN}•${NC} config.txt - Config files (.env, .yaml, .conf, etc.)"
+        echo -e "      ${CYAN}•${NC} backup.txt - Backup files (.bak, .old, .zip, etc.)"
+        echo -e "      ${CYAN}•${NC} database.txt - Database files (.sql, .db, phpmyadmin)"
+        echo -e "      ${CYAN}•${NC} secrets.txt - Secrets & credentials (passwords, tokens, api_keys)"
+        echo -e "      ${CYAN}•${NC} sourcecode.txt - Source code exposure (.git, .svn)"
+        echo -e "      ${CYAN}•${NC} api.txt - API & documentation (swagger, graphql)"
+        echo -e "      ${CYAN}•${NC} admin.txt - Admin panels (wp-admin, dashboard)"
+        echo -e "      ${CYAN}•${NC} debug.txt - Debug & dev files (phpinfo, server-status)"
+        echo -e "      ${CYAN}•${NC} logs.txt - Log files (.log, error.log)"
+        echo -e "      ${CYAN}•${NC} uploads.txt - Upload directories"
+        echo -e "      ${CYAN}•${NC} keys.txt - Keys & certificates (.pem, .key)"
+        echo -e "      ${CYAN}•${NC} datafiles.txt - Sensitive data files (.csv, .xlsx)"
+        echo -e "      ${CYAN}•${NC} internal.txt - Internal & private paths"
+        echo -e "      ${CYAN}•${NC} cloud.txt - Cloud & AWS (s3, amazonaws)"
+        echo -e "      ${CYAN}•${NC} ALL_JUICY.txt - All juicy URLs combined"
     fi
     echo ""
     

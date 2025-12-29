@@ -270,15 +270,18 @@ Basic usage:
 
 ### Options
 
-- `-parallel` - Run subdomain enumeration tools in parallel (faster)
-- `-moreurls` - Enable extra URL gathering with GAU and Hakrawler
-- `-dir` - Enable directory bruteforce with dirsearch
-- `-secret` - Enable secret finding in JavaScript files with SecretFinder
-- `-takeover` - Enable subdomain takeover check with Subzy
-- `-gf` - Enable GF patterns to filter URLs for vulnerabilities
-- `-port` - Enable port scanning with Naabu and Nmap
-- `--webhook <url>` - Use custom Discord webhook URL
-- `--no-notify` - Disable Discord notifications
+| Option | Description |
+|--------|-------------|
+| `-parallel` | Run subdomain enumeration tools in parallel (faster) |
+| `-moreurls` | Enable extra URL gathering with GAU and Hakrawler |
+| `-dir` | Enable directory bruteforce with dirsearch |
+| `-secret` | Enable secret finding in JavaScript files with SecretFinder |
+| `-takeover` | Enable subdomain takeover check with Subzy |
+| `-gf` | Enable GF patterns to filter URLs for vulnerabilities |
+| `-grep` | Extract juicy URLs by keywords (configs, backups, secrets, admin panels, etc.) |
+| `-port` | Enable port scanning with Naabu and Nmap |
+| `--webhook <url>` | Use custom Discord webhook URL |
+| `--no-notify` | Disable Discord notifications |
 
 ### Examples
 
@@ -325,6 +328,16 @@ Basic usage:
 **With port scanning:**
 ```bash
 ./0xMarvul_RECON_FLOW.sh example.com -port
+```
+
+**With grep juicy URLs:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -grep
+```
+
+**With GF patterns and grep:**
+```bash
+./0xMarvul_RECON_FLOW.sh example.com -gf -grep
 ```
 
 **With all optional features:**
@@ -401,6 +414,27 @@ target.com/
 ├── mar0xwan.txt                # Dirsearch results (only if -dir flag used)
 ├── open_ports.txt              # Open ports discovered by Naabu (only if -port flag used)
 └── ports_detailed.txt          # Detailed port scan with service detection (only if -port flag used)
+```
+
+### With `-grep` flag:
+```
+target.com/
+└── grep_results/
+    ├── config.txt      # Config files (.env, .yaml, .conf)
+    ├── backup.txt      # Backup files (.bak, .old, .zip)
+    ├── database.txt    # Database files (.sql, phpmyadmin)
+    ├── secrets.txt     # Secrets & credentials
+    ├── sourcecode.txt  # Source code (.git, .svn)
+    ├── api.txt         # API docs (swagger, graphql)
+    ├── admin.txt       # Admin panels
+    ├── debug.txt       # Debug & dev files
+    ├── logs.txt        # Log files
+    ├── uploads.txt     # Upload directories
+    ├── keys.txt        # Keys & certificates
+    ├── datafiles.txt   # Sensitive data files
+    ├── internal.txt    # Internal paths
+    ├── cloud.txt       # Cloud & AWS URLs
+    └── ALL_JUICY.txt   # All combined
 ```
 
 ## 🔔 Discord Notifications
@@ -560,6 +594,22 @@ The tool uses color-coded output for better readability:
 | `takeover_results.txt` | Subdomain takeover results | Vulnerable subdomains (if -takeover used) |
 | `secrets_output/` | SecretFinder results | Secrets found in JavaScript files (if -secret used) |
 | `mar0xwan.txt` | Dirsearch results | Directory bruteforce findings (if -dir used) |
+| `grep_results/` | Grep juicy URLs results | Categorized juicy/sensitive URLs (if -grep used) |
+| `grep_results/config.txt` | Config file URLs | .env, .yaml, .conf files |
+| `grep_results/backup.txt` | Backup file URLs | .bak, .old, .zip files |
+| `grep_results/database.txt` | Database file URLs | .sql, phpmyadmin |
+| `grep_results/secrets.txt` | Secret URLs | passwords, tokens, api_keys |
+| `grep_results/sourcecode.txt` | Source code URLs | .git, .svn exposure |
+| `grep_results/api.txt` | API documentation URLs | swagger, graphql |
+| `grep_results/admin.txt` | Admin panel URLs | wp-admin, dashboard |
+| `grep_results/debug.txt` | Debug URLs | phpinfo, server-status |
+| `grep_results/logs.txt` | Log file URLs | .log, error.log |
+| `grep_results/uploads.txt` | Upload directory URLs | /uploads/, /files/ |
+| `grep_results/keys.txt` | Key & certificate URLs | .pem, .key files |
+| `grep_results/datafiles.txt` | Sensitive data file URLs | .csv, .xlsx, .pdf |
+| `grep_results/internal.txt` | Internal path URLs | internal, private paths |
+| `grep_results/cloud.txt` | Cloud service URLs | s3, amazonaws |
+| `grep_results/ALL_JUICY.txt` | All juicy URLs combined | Complete list of findings |
 
 ## 🔒 BIGRAC Detection
 
