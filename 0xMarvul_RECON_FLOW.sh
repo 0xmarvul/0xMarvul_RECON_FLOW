@@ -1109,7 +1109,7 @@ main() {
             mkdir -p grep_results
             
             # Also combine Gospider output if exists
-            if [ -d gospider_output ]; then
+            if [ -d gospider_output ] && [ -n "$(ls -A gospider_output 2>/dev/null)" ]; then
                 print_info "Combining Gospider output..."
                 cat gospider_output/* 2>/dev/null | grep -oE "https?://[^ \"']+" | sort -u > gospider_urls.txt
                 cat allurls.txt gospider_urls.txt 2>/dev/null | sort -u > all_urls_combined.txt
@@ -1192,7 +1192,7 @@ main() {
             
             # Combine all unique findings
             print_info "Combining all results..."
-            cat grep_results/*.txt 2>/dev/null | sort -u > grep_results/ALL_JUICY.txt
+            find grep_results/ -name '*.txt' -exec cat {} + 2>/dev/null | sort -u > grep_results/ALL_JUICY.txt
             total_juicy=$(wc -l < grep_results/ALL_JUICY.txt 2>/dev/null || echo 0)
             
             # Remove empty files
