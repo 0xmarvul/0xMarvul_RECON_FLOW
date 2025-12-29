@@ -1192,11 +1192,11 @@ main() {
             
             # Combine all unique findings
             print_info "Combining all results..."
-            find grep_results/ -name '*.txt' -exec cat {} + 2>/dev/null | sort -u > grep_results/ALL_JUICY.txt
+            find grep_results/ -name '*.txt' ! -name 'ALL_JUICY.txt' -exec cat {} + 2>/dev/null | sort -u > grep_results/ALL_JUICY.txt
             total_juicy=$(wc -l < grep_results/ALL_JUICY.txt 2>/dev/null || echo 0)
             
-            # Remove empty files
-            find grep_results/ -type f -empty -delete 2>/dev/null
+            # Remove empty files (but check total_juicy first to avoid deleting ALL_JUICY.txt prematurely)
+            find grep_results/ -name '*.txt' ! -name 'ALL_JUICY.txt' -type f -empty -delete 2>/dev/null
             
             # Print summary
             print_success "Grep Juicy URLs completed!"
