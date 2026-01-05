@@ -552,7 +552,7 @@ The script includes a default Discord webhook URL. If you're using this tool for
 
 **Security Note**: For production use, consider storing the webhook URL in an environment variable or external configuration file rather than hardcoding it in the script to prevent accidental exposure in version control.
 
-## 🎨 Color Coding
+## Color Coding
 
 The tool uses color-coded output for better readability:
 
@@ -612,7 +612,7 @@ The tool uses color-coded output for better readability:
 | `grep_results/cloud.txt` | Cloud service URLs | s3, amazonaws |
 | `grep_results/ALL_JUICY.txt` | All juicy URLs combined | Complete list of findings |
 
-## 🔒 BIGRAC Detection
+## BIGRAC Detection
 
 **BIGRAC** (Bug bounty Interesting Gateways, Routes, Apis, and Configurations) detection finds sensitive files including:
 
@@ -624,7 +624,7 @@ The tool uses color-coded output for better readability:
 - Environment files
 - Package configuration files
 
-## ⚠️ Error Handling
+## Error Handling
 
 The tool is designed to be resilient:
 
@@ -633,7 +633,7 @@ The tool is designed to be resilient:
 - **Logs failed tools** in the final summary
 - **Graceful degradation** when tools are not installed
 
-## 🎯 Use Cases
+## Use Cases
 
 This tool is perfect for:
 
@@ -643,7 +643,7 @@ This tool is perfect for:
 - **Attack Surface Mapping**: Identifying all potential entry points
 - **Sensitive File Detection**: Finding exposed configurations and credentials
 
-## 🛡️ Ethical Usage
+## Ethical Usage
 
 This tool is intended for:
 - ✅ Authorized security testing
@@ -653,7 +653,7 @@ This tool is intended for:
 
 **Always ensure you have permission before scanning any target.**
 
-## 📝 Example Output
+## Example Output
 
 ```
 [✓] Target Domain: example.com
@@ -684,7 +684,7 @@ Statistics:
   ► BIGRAC sensitive files: 8
 ```
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Feel free to:
 - Report bugs
@@ -692,26 +692,26 @@ Contributions are welcome! Feel free to:
 - Submit pull requests
 - Improve documentation
 
-## 📄 License
+## License
 
 This project is open source and available for educational and ethical security testing purposes.
 
-## 👤 Author
+## Author
 
 **0xMarvul**
 
-## ⭐ Support
+## Support
 
 If you find this tool useful, please consider giving it a star on GitHub!
 
-## 📚 Resources
+## Resources
 
 - [Subfinder Documentation](https://github.com/projectdiscovery/subfinder)
 - [httpx Documentation](https://github.com/projectdiscovery/httpx)
 - [Katana Documentation](https://github.com/projectdiscovery/katana)
 - [OWASP Testing Guide](https://owasp.org/www-project-web-security-testing-guide/)
 
-## 🔄 Updates
+## Updates
 
 Check the repository regularly for updates and new features!
 
