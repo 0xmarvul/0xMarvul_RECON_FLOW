@@ -4,7 +4,7 @@
 
 A comprehensive bash-based reconnaissance automation tool for bug bounty hunting and security assessments. This tool automates the process of subdomain enumeration, live host discovery, URL gathering, and sensitive file detection.
 
-## 🎯 Features
+## Features
 
 - **Automated Subdomain Enumeration**: Uses multiple sources (Subfinder, Assetfinder, crt.sh, Shrewdeye)
 - **Parallel Subdomain Enumeration**: Optional parallel mode with `-parallel` flag for faster subdomain discovery
@@ -25,7 +25,7 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 - **Progress Tracking**: Real-time progress updates with timestamps
 - **Comprehensive Summary**: Detailed statistics and file descriptions at the end
 
-## ⏭️ Graceful Skip Feature
+## Graceful Skip Feature
 
 One of the powerful features of 0xMarvul RECON FLOW is the ability to skip long-running tools without stopping the entire scan.
 
@@ -74,7 +74,7 @@ The graceful skip feature works with these potentially long-running tools:
 - **nmap** - Detailed port scanning
 - **subzy** - Subdomain takeover checking
 
-## 📋 Prerequisites
+## Prerequisites
 
 This tool requires several external security tools to be installed. Below are the installation instructions for each:
 
@@ -243,7 +243,7 @@ export PATH=$PATH:$(go env GOPATH)/bin
 echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
 ```
 
-## 🚀 Installation
+## Installation
 
 1. Clone the repository:
    ```bash
@@ -261,7 +261,7 @@ echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
    ./0xMarvul_RECON_FLOW.sh target.com
    ```
 
-## 📖 Usage
+## Usage
 
 Basic usage:
 ```bash
@@ -375,7 +375,7 @@ The script will:
 7. Send a completion notification with full statistics
 8. Display a comprehensive summary
 
-## 📁 Output Structure
+## Output Structure
 
 After running the tool, all results will be saved in a directory named after your target domain:
 
@@ -437,7 +437,7 @@ target.com/
     └── ALL_JUICY.txt   # All combined
 ```
 
-## 🔔 Discord Notifications
+## Discord Notifications
 
 0xMarvul RECON FLOW includes real-time Discord webhook integration to keep you updated on scan progress.
 
@@ -445,12 +445,12 @@ target.com/
 
 Discord notifications are **enabled by default** and will send three types of messages:
 
-#### 1. 🚀 Scan Started Notification
+#### 1. Scan Started Notification
 Sent when the scan begins, showing:
 - Target domain being scanned
 - Timestamp when scan started
 
-#### 2. ✅ Scan Completed Notification
+#### 2. Scan Completed Notification
 Sent when the scan finishes successfully, showing:
 - Target domain
 - Total subdomains found
@@ -467,7 +467,7 @@ Sent when the scan finishes successfully, showing:
 - Technologies detected
 - Total scan duration
 
-#### 3. ⚠️ Error Notifications
+#### 3. Error Notifications
 Sent whenever a tool fails or times out, showing:
 - Which tool encountered an error
 - Error message or reason
