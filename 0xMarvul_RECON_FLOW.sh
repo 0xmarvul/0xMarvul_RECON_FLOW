@@ -835,7 +835,7 @@ main() {
                 
                 if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
                     if [ -s takeover_results.txt ]; then
-                        takeover_count=$(wc -l < takeover_results.txt 2>/dev/null || echo 0)
+                        takeover_count=$(grep -c . takeover_results.txt 2>/dev/null || echo 0)
                         if [ "$takeover_count" -gt 0 ]; then
                             if [ $exit_code -eq 0 ]; then
                                 print_success "Nuclei takeover scan completed - Found $takeover_count potential takeovers!"
@@ -845,9 +845,9 @@ main() {
                             # Show findings
                             echo ""
                             echo -e "    ${RED}⚠️  TAKEOVER VULNERABILITIES FOUND:${NC}"
-                            cat takeover_results.txt | while read line; do
+                            while read line; do
                                 echo -e "    ${YELLOW}►${NC} $line"
-                            done
+                            done < takeover_results.txt
                             echo ""
                             # Send Discord alert for takeovers found
                             send_discord "🚨 Subdomain Takeover Found!" "Found $takeover_count vulnerable subdomains on $DOMAIN" 16711680 '[{"name": "Target", "value": "'"$DOMAIN"'", "inline": true}, {"name": "Vulnerabilities", "value": "'"$takeover_count"'", "inline": true}]' "0xMarvul RECON FLOW - CRITICAL"
