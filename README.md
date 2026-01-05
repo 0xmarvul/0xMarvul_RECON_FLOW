@@ -698,7 +698,7 @@ This project is open source and available for educational and ethical security t
 
 ## Author
 
-**0xMarvul**
+**Marwan Khodair** **(0xMarvul)**
 
 ## Support
 
