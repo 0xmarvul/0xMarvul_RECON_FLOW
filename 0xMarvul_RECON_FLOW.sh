@@ -320,11 +320,18 @@ check_dependencies() {
     fi
     
     if [ "$ENABLE_TAKEOVER" = true ]; then
-        if command -v subzy &> /dev/null; then
-            print_success "subzy is installed"
+        if command -v nuclei &> /dev/null; then
+            print_success "nuclei is installed"
+            # Check if takeover templates exist
+            if [ -d "$HOME/nuclei-templates/http/takeovers" ]; then
+                print_success "nuclei takeover templates found"
+            else
+                print_warning "nuclei takeover templates not found at ~/nuclei-templates/http/takeovers"
+                print_info "Run: nuclei -update-templates"
+            fi
         else
-            print_warning "subzy is NOT installed (required for -takeover flag)"
-            optional_tools+=("subzy")
+            print_warning "nuclei is NOT installed (required for -takeover flag)"
+            optional_tools+=("nuclei")
         fi
     fi
     
@@ -398,7 +405,7 @@ usage() {
     echo -e "  ${CYAN}-moreurls${NC}         Enable extra URL gathering with GAU and Hakrawler"
     echo -e "  ${CYAN}-dir${NC}              Enable directory bruteforce with dirsearch"
     echo -e "  ${CYAN}-secret${NC}           Enable secret finding in JavaScript files"
-    echo -e "  ${CYAN}-takeover${NC}         Enable subdomain takeover check with Subzy"
+    echo -e "  ${CYAN}-takeover${NC}         Enable subdomain takeover check with Nuclei"
     echo -e "  ${CYAN}-gf${NC}               Enable GF patterns to filter URLs for vulnerabilities"
     echo -e "  ${CYAN}-port${NC}             Enable port scanning with Naabu and Nmap"
     echo -e "  ${CYAN}-grep${NC}             Extract juicy URLs by keywords (configs, backups, secrets, etc.)"
@@ -814,47 +821,63 @@ main() {
     # Step 10: Subdomain Takeover Check (Optional)
     takeover_count=0
     if [ "$ENABLE_TAKEOVER" = true ]; then
-        print_step "Step 10: Subdomain Takeover (-takeover)"
+        print_step "Subdomain Takeover Check (-takeover)"
         print_info "Timestamp: $(get_timestamp)"
         
-        if [ -s live_hosts.txt ] && command -v subzy &> /dev/null; then
-            print_info "Running Subzy to check for subdomain takeover..."
+        if [ -s live_hosts.txt ] && command -v nuclei &> /dev/null; then
+            print_info "Running Nuclei takeover templates..."
             print_skip_hint
-            run_with_skip "subzy" "subzy run --targets live_hosts.txt --hide_fails > takeover_results.txt 2>/dev/null"
-            local exit_code=$?
-            if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
-                if [ -s takeover_results.txt ]; then
-                    takeover_count=$(grep -c "VULNERABLE" takeover_results.txt 2>/dev/null || echo 0)
-                    if [ "$takeover_count" -gt 0 ]; then
-                        if [ $exit_code -eq 0 ]; then
-                            print_success "Subzy completed - Found $takeover_count potential takeovers!"
+            
+            # Check if templates exist
+            if [ -d "$HOME/nuclei-templates/http/takeovers" ]; then
+                run_with_skip "nuclei-takeover" "nuclei -l live_hosts.txt -t ~/nuclei-templates/http/takeovers -o takeover_results.txt 2>/dev/null"
+                local exit_code=$?
+                
+                if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
+                    if [ -s takeover_results.txt ]; then
+                        takeover_count=$(grep -c . takeover_results.txt 2>/dev/null || echo 0)
+                        if [ "$takeover_count" -gt 0 ]; then
+                            if [ $exit_code -eq 0 ]; then
+                                print_success "Nuclei takeover scan completed - Found $takeover_count potential takeovers!"
+                            else
+                                print_info "Nuclei takeover scan - Found $takeover_count potential takeovers (partial)!"
+                            fi
+                            # Show findings
+                            echo ""
+                            echo -e "    ${RED}⚠️  TAKEOVER VULNERABILITIES FOUND:${NC}"
+                            while read line; do
+                                echo -e "    ${YELLOW}►${NC} $line"
+                            done < takeover_results.txt
+                            echo ""
+                            # Send Discord alert for takeovers found
+                            send_discord "🚨 Subdomain Takeover Found!" "Found $takeover_count vulnerable subdomains on $DOMAIN" 16711680 '[{"name": "Target", "value": "'"$DOMAIN"'", "inline": true}, {"name": "Vulnerabilities", "value": "'"$takeover_count"'", "inline": true}]' "0xMarvul RECON FLOW - CRITICAL"
                         else
-                            print_info "Subzy - Found $takeover_count potential takeovers (partial)!"
+                            if [ $exit_code -eq 0 ]; then
+                                print_success "Nuclei takeover scan completed - No takeovers found"
+                            else
+                                print_info "Nuclei takeover scan - No takeovers found (partial scan)"
+                            fi
                         fi
-                        # Send Discord alert for takeovers found
-                        send_discord_error "$DOMAIN" "Subdomain Takeover" "Found $takeover_count vulnerable subdomains!"
                     else
                         if [ $exit_code -eq 0 ]; then
-                            print_success "Subzy completed - No takeovers found"
-                        else
-                            print_info "Subzy - No takeovers found (partial scan)"
+                            print_success "Nuclei takeover scan completed - No takeovers found"
                         fi
                     fi
                 else
-                    if [ $exit_code -eq 0 ]; then
-                        print_warning "Subzy completed - No results"
-                    fi
+                    print_error "Nuclei takeover scan failed"
+                    failed_tools+=("nuclei-takeover")
+                    send_discord_error "$DOMAIN" "nuclei-takeover" "Command execution failed"
                 fi
             else
-                print_error "Subzy failed"
-                failed_tools+=("subzy")
-                send_discord_error "$DOMAIN" "subzy" "Command execution failed"
+                print_error "Nuclei takeover templates not found!"
+                print_info "Please run: nuclei -update-templates"
+                failed_tools+=("nuclei-templates")
             fi
         else
             if [ ! -s live_hosts.txt ]; then
                 print_warning "No live hosts to check for takeover"
             else
-                print_warning "Subzy not installed, skipping takeover check..."
+                print_warning "Nuclei not installed, skipping takeover check..."
             fi
         fi
     fi
@@ -1423,7 +1446,7 @@ main() {
     echo -e "  ${CYAN}►${NC} ${BOLD}json.txt${NC} - JSON file URLs (API responses, configs)"
     echo -e "  ${CYAN}►${NC} ${BOLD}BIGRAC.txt${NC} - Sensitive files: swagger docs, API docs, configs, .env, SQL dumps, credentials"
     if [ "$ENABLE_TAKEOVER" = true ]; then
-        echo -e "  ${CYAN}►${NC} ${BOLD}takeover_results.txt${NC} - Subdomain takeover check results from Subzy"
+        echo -e "  ${CYAN}►${NC} ${BOLD}takeover_results.txt${NC} - Subdomain takeover vulnerabilities found by Nuclei"
     fi
     if [ "$ENABLE_SECRETFINDER" = true ]; then
         echo -e "  ${CYAN}►${NC} ${BOLD}secrets_found.txt${NC} - Secrets found in JavaScript files"
