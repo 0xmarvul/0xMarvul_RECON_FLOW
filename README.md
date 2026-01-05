@@ -9,7 +9,7 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 - **Automated Subdomain Enumeration**: Uses multiple sources (Subfinder, Assetfinder, crt.sh, Shrewdeye)
 - **Parallel Subdomain Enumeration**: Optional parallel mode with `-parallel` flag for faster subdomain discovery
 - **Live Host Detection**: Identifies active web servers using httpx
-- **Subdomain Takeover Check**: Optional check for subdomain takeover vulnerabilities with Subzy (use `-takeover` flag)
+- **Subdomain Takeover Check**: Optional check for subdomain takeover vulnerabilities with Nuclei (use `-takeover` flag)
 - **Technology Detection**: Detects web technologies, CMS, frameworks, and servers
 - **URL Discovery**: Gathers URLs from multiple sources (Gospider, Waybackurls, Katana)
 - **Extended URL Discovery**: Optional extra URL gathering with GAU and Hakrawler (use `-moreurls` flag)
@@ -72,7 +72,7 @@ The graceful skip feature works with these potentially long-running tools:
 - **secretfinder** - Secret scanning in JavaScript
 - **naabu** - Fast port scanner
 - **nmap** - Detailed port scanning
-- **subzy** - Subdomain takeover checking
+- **nuclei** - Vulnerability scanner with takeover templates
 
 ## Prerequisites
 
@@ -154,9 +154,11 @@ This tool requires several external security tools to be installed. Below are th
     sudo chmod +x /usr/local/bin/secretfinder
     ```
 
-12. **Subzy** - Subdomain takeover vulnerability checker (only needed if using `-takeover` flag)
+12. **Nuclei** - Vulnerability scanner (only needed if using `-takeover` flag)
     ```bash
-    go install -v github.com/LukaSikic/subzy@latest
+    go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+    # Update nuclei templates to get takeover templates
+    nuclei -update-templates
     ```
 
 13. **GF (GF Patterns)** - Pattern-based grep for filtering URLs (only needed if using `-gf` flag)
@@ -215,7 +217,6 @@ go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
 go install github.com/jaeles-project/gospider@latest
 go install github.com/tomnomnom/waybackurls@latest
 go install github.com/projectdiscovery/katana/cmd/katana@latest
-go install -v github.com/LukaSikic/subzy@latest
 go install github.com/tomnomnom/gf@latest
 go install github.com/lc/gau/v2/cmd/gau@latest
 go install github.com/hakluke/hakrawler@latest
@@ -276,7 +277,7 @@ Basic usage:
 | `-moreurls` | Enable extra URL gathering with GAU and Hakrawler |
 | `-dir` | Enable directory bruteforce with dirsearch |
 | `-secret` | Enable secret finding in JavaScript files with SecretFinder |
-| `-takeover` | Enable subdomain takeover check with Subzy |
+| `-takeover` | Enable subdomain takeover check with Nuclei |
 | `-gf` | Enable GF patterns to filter URLs for vulnerabilities |
 | `-grep` | Extract juicy URLs by keywords (configs, backups, secrets, admin panels, etc.) |
 | `-port` | Enable port scanning with Naabu and Nmap |
