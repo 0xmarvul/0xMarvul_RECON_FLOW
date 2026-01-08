@@ -597,6 +597,14 @@ main() {
         fi
     fi
     
+    # Additional check for compare mode: ensure subdomains.txt exists
+    if [ "$COMPARE_MODE" = true ] && [ ! -f "$OUTPUT_DIR/subdomains.txt" ]; then
+        print_error "No previous scan data found for $DOMAIN"
+        print_error "The file $OUTPUT_DIR/subdomains.txt does not exist"
+        print_error "Run a normal scan first: ./0xMarvul_RECON_FLOW.sh $DOMAIN"
+        exit 1
+    fi
+    
     cd "$OUTPUT_DIR" || exit 1
     
     # Set up cleanup trap
