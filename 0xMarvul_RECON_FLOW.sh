@@ -651,7 +651,7 @@ main() {
         
         # RapidDNS with timeout
         if command -v curl &> /dev/null; then
-            (timeout 30 curl -s "https://rapiddns.io/subdomain/$DOMAIN?full=1" 2>/dev/null | grep -oP '[\w\.-]+\.'$DOMAIN'' | sort -u > subs_rapiddns.txt) &
+            (timeout 30 curl -s "https://rapiddns.io/subdomain/$DOMAIN?full=1" 2>/dev/null | grep -oP '[\w.-]+\.'$DOMAIN'' | sort -u > subs_rapiddns.txt) &
             pid_rapiddns=$!
         fi
         
@@ -859,7 +859,7 @@ main() {
         # RapidDNS
         if command -v curl &> /dev/null; then
             print_info "Running RapidDNS..."
-            curl -s "https://rapiddns.io/subdomain/$DOMAIN?full=1" 2>/dev/null | grep -oP '[\w\.-]+\.'$DOMAIN'' | sort -u > subs_rapiddns.txt
+            curl -s "https://rapiddns.io/subdomain/$DOMAIN?full=1" 2>/dev/null | grep -oP '[\w.-]+\.'$DOMAIN'' | sort -u > subs_rapiddns.txt
             if [ -s subs_rapiddns.txt ]; then
                 print_success "RapidDNS completed - Found $(wc -l < subs_rapiddns.txt) subdomains"
             else
