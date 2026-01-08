@@ -74,6 +74,104 @@ The graceful skip feature works with these potentially long-running tools:
 - **nmap** - Detailed port scanning
 - **nuclei** - Vulnerability scanner with takeover templates
 
+## Compare Mode
+
+The `-compare` flag allows you to compare current subdomain enumeration results with previous scans to track changes over time.
+
+### How It Works
+
+When you run the tool with `-compare`:
+
+```bash
+./0xMarvul_RECON_FLOW.sh target.com -compare
+```
+
+**The tool will:**
+1. Only run subdomain enumeration (Subfinder, Assetfinder, crt.sh, etc.)
+2. Only run live host check (httpx)
+3. Compare with previous results
+4. Show NEW and REMOVED subdomains/live hosts in CLI
+5. Save results to `target.com/compare/compare_X/` folder
+6. Send Discord notification with results
+
+### Comparison Chain
+
+The compare feature maintains a comparison chain:
+
+- **compare_1/** compares with `target.com/subdomains.txt` (original scan)
+- **compare_2/** compares with `compare_1/all_subdomains.txt`
+- **compare_3/** compares with `compare_2/all_subdomains.txt`
+- And so on...
+
+### Requirements
+
+Before using `-compare`:
+- You must have run a normal scan first (without `-compare` flag)
+- The `target.com/subdomains.txt` file must exist from the original scan
+
+### Output Structure
+
+```
+target.com/
+├── subdomains.txt          # Original scan results
+├── live_hosts.txt          # Original live hosts
+└── compare/
+    ├── compare_1/
+    │   ├── new_subdomains.txt      # New subdomains found
+    │   ├── removed_subdomains.txt  # Subdomains no longer found
+    │   ├── new_live.txt            # New live hosts
+    │   ├── now_dead.txt            # Previously live hosts now dead
+    │   ├── all_subdomains.txt      # All subdomains from this scan
+    │   ├── all_live.txt            # All live hosts from this scan
+    │   └── summary.txt             # Comparison summary
+    ├── compare_2/
+    │   └── ...
+    └── compare_3/
+        └── ...
+```
+
+### Example Output
+
+```
+╔═══════════════════════════════════════════════════════════╗
+║             COMPARISON RESULTS                            ║
+╚═══════════════════════════════════════════════════════════╝
+
+Target: example.com
+Compared with: example.com
+Results saved to: example.com/compare/compare_1
+
+═══ SUBDOMAIN CHANGES ═══
+  ► Previous count: 150
+  ► Current count:  165
+  ► New:            18
+  ► Removed:        3
+
+╔═══ NEW SUBDOMAINS ═══╗
+  + api.example.com
+  + beta.example.com
+  + dev.example.com
+╚═══════════════════════╝
+
+═══ LIVE HOST CHANGES ═══
+  ► Previous count: 45
+  ► Current count:  48
+  ► New Live:       5
+  ► Now Dead:       2
+
+╔═══ NEW LIVE HOSTS ═══╗
+  + https://api.example.com
+  + https://beta.example.com
+╚═══════════════════════╝
+```
+
+### Use Cases
+
+- **Continuous Monitoring**: Track new subdomains appearing over time
+- **Asset Discovery**: Identify when new infrastructure is deployed
+- **Security Monitoring**: Detect when subdomains disappear (possible takeover or misconfiguration)
+- **Bug Bounty**: Quickly identify new attack surface for testing
+
 ## Prerequisites
 
 This tool requires several external security tools to be installed. Below are the installation instructions for each:
@@ -281,6 +379,7 @@ Basic usage:
 | `-gf` | Enable GF patterns to filter URLs for vulnerabilities |
 | `-grep` | Extract juicy URLs by keywords (configs, backups, secrets, admin panels, etc.) |
 | `-port` | Enable port scanning with Naabu and Nmap |
+| `-compare` | Compare subdomains with previous scan (subdomain enum + live check only) |
 | `--webhook <url>` | Use custom Discord webhook URL |
 | `--no-notify` | Disable Discord notifications |
 
@@ -339,6 +438,11 @@ Basic usage:
 **With GF patterns and grep:**
 ```bash
 ./0xMarvul_RECON_FLOW.sh example.com -gf -grep
+```
+
+**Compare with previous scan:**
+```bash
+./0xMarvul_RECON_FLOW.sh target.com -compare
 ```
 
 **With all optional features:**
