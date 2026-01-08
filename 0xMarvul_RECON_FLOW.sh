@@ -797,9 +797,17 @@ main() {
         print_step "Compare Mode - Analyzing Changes"
         print_info "Timestamp: $(get_timestamp)"
         
+        # Check if output directory exists
+        if [ ! -d "$OUTPUT_DIR" ]; then
+            print_error "Output directory $OUTPUT_DIR does not exist. Run a normal scan first."
+            exit 1
+        fi
+        
         # Check if previous scan exists
         if [ ! -f "$OUTPUT_DIR/subdomains.txt" ]; then
-            print_error "No previous scan found for $DOMAIN. Run a normal scan first."
+            print_error "No previous scan found for $DOMAIN."
+            print_error "The file $OUTPUT_DIR/subdomains.txt does not exist."
+            print_error "Run a normal scan first: ./0xMarvul_RECON_FLOW.sh $DOMAIN"
             exit 1
         fi
         
@@ -848,32 +856,42 @@ main() {
             fi
             
             if [ -f "$previous_live" ]; then
+                # Create temporary files with mktemp
+                local prev_live_tmp=$(mktemp)
+                local curr_live_tmp=$(mktemp)
+                local new_live_tmp=$(mktemp)
+                local dead_tmp=$(mktemp)
+                
+                # Set up cleanup trap for temp files
+                trap "rm -f '$prev_live_tmp' '$curr_live_tmp' '$new_live_tmp' '$dead_tmp'" EXIT
+                
                 # Extract just hostnames for comparison
-                cat "$previous_live" | sed 's|https\?://||' | cut -d'/' -f1 | sort -u > /tmp/prev_live_hosts.txt
-                cat live_hosts.txt | sed 's|https\?://||' | cut -d'/' -f1 | sort -u > /tmp/curr_live_hosts.txt
+                cat "$previous_live" | sed 's|https\?://||' | cut -d'/' -f1 | sort -u > "$prev_live_tmp"
+                cat live_hosts.txt | sed 's|https\?://||' | cut -d'/' -f1 | sort -u > "$curr_live_tmp"
                 
                 # Compare
-                comm -13 /tmp/prev_live_hosts.txt /tmp/curr_live_hosts.txt > /tmp/new_live_hosts.txt
-                comm -23 /tmp/prev_live_hosts.txt /tmp/curr_live_hosts.txt > /tmp/now_dead_hosts.txt
+                comm -13 "$prev_live_tmp" "$curr_live_tmp" > "$new_live_tmp"
+                comm -23 "$prev_live_tmp" "$curr_live_tmp" > "$dead_tmp"
                 
                 # Get full URLs for new live hosts
-                if [ -s /tmp/new_live_hosts.txt ]; then
-                    grep -F -f /tmp/new_live_hosts.txt live_hosts.txt > "$compare_output_dir/new_live.txt" 2>/dev/null || touch "$compare_output_dir/new_live.txt"
+                if [ -s "$new_live_tmp" ]; then
+                    grep -F -f "$new_live_tmp" live_hosts.txt > "$compare_output_dir/new_live.txt" 2>/dev/null || touch "$compare_output_dir/new_live.txt"
                 else
                     touch "$compare_output_dir/new_live.txt"
                 fi
                 
                 # Save now dead hosts list
-                cp /tmp/now_dead_hosts.txt "$compare_output_dir/now_dead.txt" 2>/dev/null || touch "$compare_output_dir/now_dead.txt"
+                cp "$dead_tmp" "$compare_output_dir/now_dead.txt" 2>/dev/null || touch "$compare_output_dir/now_dead.txt"
                 
                 # Get counts
-                prev_live_count=$(wc -l < /tmp/prev_live_hosts.txt 2>/dev/null || echo 0)
-                curr_live_count=$(wc -l < /tmp/curr_live_hosts.txt 2>/dev/null || echo 0)
+                prev_live_count=$(wc -l < "$prev_live_tmp" 2>/dev/null || echo 0)
+                curr_live_count=$(wc -l < "$curr_live_tmp" 2>/dev/null || echo 0)
                 new_live_count=$(wc -l < "$compare_output_dir/new_live.txt" 2>/dev/null || echo 0)
                 now_dead_count=$(wc -l < "$compare_output_dir/now_dead.txt" 2>/dev/null || echo 0)
                 
-                # Clean up temp files
-                rm -f /tmp/prev_live_hosts.txt /tmp/curr_live_hosts.txt /tmp/new_live_hosts.txt /tmp/now_dead_hosts.txt
+                # Clean up temp files (trap will also clean up)
+                rm -f "$prev_live_tmp" "$curr_live_tmp" "$new_live_tmp" "$dead_tmp"
+                trap - EXIT
             else
                 print_warning "No previous live hosts file found"
                 prev_live_count=0

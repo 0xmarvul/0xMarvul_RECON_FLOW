@@ -442,7 +442,7 @@ Basic usage:
 
 **Compare with previous scan:**
 ```bash
-./0xMarvul_RECON_FLOW.sh example.com -compare
+./0xMarvul_RECON_FLOW.sh target.com -compare
 ```
 
 **With all optional features:**
