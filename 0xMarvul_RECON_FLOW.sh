@@ -569,16 +569,40 @@ main() {
     # Create output directory
     print_step "Creating Output Directory"
     if [ -d "$OUTPUT_DIR" ]; then
-        print_warning "Directory $OUTPUT_DIR already exists"
-        read -p "Do you want to continue? (y/n): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            print_error "Exiting..."
-            exit 1
+        if [ "$COMPARE_MODE" = true ]; then
+            # In compare mode, we NEED the folder to exist - don't ask, just continue
+            print_info "Compare mode: Using existing scan data from $OUTPUT_DIR"
+        else
+            # Normal mode - ask user
+            print_warning "Directory $OUTPUT_DIR already exists"
+            read -p "Do you want to continue? (y/n): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                print_error "Exiting..."
+                exit 1
+            fi
+            print_info "Continuing with existing directory..."
         fi
     else
-        mkdir -p "$OUTPUT_DIR"
-        print_success "Created directory: $OUTPUT_DIR"
+        # Directory doesn't exist
+        if [ "$COMPARE_MODE" = true ]; then
+            # In compare mode, folder MUST exist
+            print_error "No previous scan found for $DOMAIN"
+            print_error "Run a normal scan first: ./0xMarvul_RECON_FLOW.sh $DOMAIN"
+            exit 1
+        else
+            # Normal mode - create the directory
+            mkdir -p "$OUTPUT_DIR"
+            print_success "Created directory: $OUTPUT_DIR"
+        fi
+    fi
+    
+    # Additional check for compare mode: ensure subdomains.txt exists
+    if [ "$COMPARE_MODE" = true ] && [ ! -f "$OUTPUT_DIR/subdomains.txt" ]; then
+        print_error "No previous scan data found for $DOMAIN"
+        print_error "The file $OUTPUT_DIR/subdomains.txt does not exist"
+        print_error "Run a normal scan first: ./0xMarvul_RECON_FLOW.sh $DOMAIN"
+        exit 1
     fi
     
     cd "$OUTPUT_DIR" || exit 1
