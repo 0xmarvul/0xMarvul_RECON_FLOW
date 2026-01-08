@@ -6,7 +6,7 @@ A comprehensive bash-based reconnaissance automation tool for bug bounty hunting
 
 ## Features
 
-- **Automated Subdomain Enumeration**: Uses multiple sources (Subfinder, Assetfinder, crt.sh, Shrewdeye)
+- **Automated Subdomain Enumeration**: Uses multiple sources (Subfinder, Assetfinder, crt.sh, Shrewdeye, HackerTarget, RapidDNS, Anubis-DB)
 - **Parallel Subdomain Enumeration**: Optional parallel mode with `-parallel` flag for faster subdomain discovery
 - **Live Host Detection**: Identifies active web servers using httpx
 - **Subdomain Takeover Check**: Optional check for subdomain takeover vulnerabilities with Nuclei (use `-takeover` flag)
@@ -490,6 +490,9 @@ target.com/
 ├── subs_assetfinder.txt        # Subdomains from Assetfinder
 ├── subs_crtsh.txt              # Subdomains from Certificate Transparency logs
 ├── subs_shrewdeye.txt          # Subdomains from Shrewdeye
+├── subs_hackertarget.txt       # Subdomains from HackerTarget
+├── subs_rapiddns.txt           # Subdomains from RapidDNS
+├── subs_anubis.txt             # Subdomains from Anubis-DB
 ├── all_subs.txt                # All unique subdomains combined
 ├── live_hosts.txt              # Active/responsive web servers
 ├── takeover_results.txt        # Subdomain takeover check results (only if -takeover flag used)
@@ -673,6 +676,9 @@ The tool uses color-coded output for better readability:
 | `subs_assetfinder.txt` | Subdomains from Assetfinder | Additional subdomain sources |
 | `subs_crtsh.txt` | Certificate Transparency logs | Historical subdomain data |
 | `subs_shrewdeye.txt` | Subdomains from Shrewdeye | Free subdomain enumeration |
+| `subs_hackertarget.txt` | Subdomains from HackerTarget | Free API subdomain discovery |
+| `subs_rapiddns.txt` | Subdomains from RapidDNS | Web-scraped subdomain data |
+| `subs_anubis.txt` | Subdomains from Anubis-DB | Subdomain database |
 | `all_subs.txt` | Deduplicated subdomains | Complete subdomain list |
 | `live_hosts.txt` | Active web servers | Target for further testing |
 | `tech_detect.txt` | Detected technologies | Identify CMS, frameworks, servers |
