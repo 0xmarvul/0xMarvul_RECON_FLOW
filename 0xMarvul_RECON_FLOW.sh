@@ -856,14 +856,11 @@ main() {
             fi
             
             if [ -f "$previous_live" ]; then
-                # Create temporary files with mktemp
-                local prev_live_tmp=$(mktemp)
-                local curr_live_tmp=$(mktemp)
-                local new_live_tmp=$(mktemp)
-                local dead_tmp=$(mktemp)
-                
-                # Set up cleanup trap for temp files
-                trap "rm -f '$prev_live_tmp' '$curr_live_tmp' '$new_live_tmp' '$dead_tmp'" EXIT
+                # Create temporary files with mktemp using proper templates
+                local prev_live_tmp=$(mktemp -t compare_prev.XXXXXX)
+                local curr_live_tmp=$(mktemp -t compare_curr.XXXXXX)
+                local new_live_tmp=$(mktemp -t compare_new.XXXXXX)
+                local dead_tmp=$(mktemp -t compare_dead.XXXXXX)
                 
                 # Extract just hostnames for comparison
                 cat "$previous_live" | sed 's|https\?://||' | cut -d'/' -f1 | sort -u > "$prev_live_tmp"
@@ -889,9 +886,8 @@ main() {
                 new_live_count=$(wc -l < "$compare_output_dir/new_live.txt" 2>/dev/null || echo 0)
                 now_dead_count=$(wc -l < "$compare_output_dir/now_dead.txt" 2>/dev/null || echo 0)
                 
-                # Clean up temp files (trap will also clean up)
+                # Clean up temp files
                 rm -f "$prev_live_tmp" "$curr_live_tmp" "$new_live_tmp" "$dead_tmp"
-                trap - EXIT
             else
                 print_warning "No previous live hosts file found"
                 prev_live_count=0
@@ -1031,6 +1027,12 @@ EOF
         echo -e "${BOLD}${CYAN}Results saved to: $compare_output_dir${NC}"
         echo -e "${BOLD}${CYAN}═══════════════════════════════════════${NC}"
         echo ""
+        
+        # Ensure counts are numeric for JSON (default to 0 if empty)
+        new_sub_count=${new_sub_count:-0}
+        removed_sub_count=${removed_sub_count:-0}
+        new_live_count=${new_live_count:-0}
+        now_dead_count=${now_dead_count:-0}
         
         # Send Discord notification
         send_discord "🔍 Compare Results - $DOMAIN" "Comparison completed with $(basename $previous_dir)" 3447003 '[
