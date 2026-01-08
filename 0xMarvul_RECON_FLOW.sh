@@ -643,6 +643,24 @@ main() {
             pid_shrewdeye=$!
         fi
         
+        # HackerTarget with timeout
+        if command -v curl &> /dev/null; then
+            (timeout 30 curl -s "https://api.hackertarget.com/hostsearch/?q=$DOMAIN" 2>/dev/null | cut -d',' -f1 | grep -v "error" > subs_hackertarget.txt) &
+            pid_hackertarget=$!
+        fi
+        
+        # RapidDNS with timeout
+        if command -v curl &> /dev/null; then
+            (timeout 30 curl -s "https://rapiddns.io/subdomain/$DOMAIN?full=1" 2>/dev/null | grep -oP '[\w\.-]+\.'$DOMAIN'' | sort -u > subs_rapiddns.txt) &
+            pid_rapiddns=$!
+        fi
+        
+        # Anubis-DB with timeout
+        if command -v curl &> /dev/null && command -v jq &> /dev/null; then
+            (timeout 30 curl -s "https://anubisdb.com/anubis/subdomains/$DOMAIN" 2>/dev/null | jq -r '.[]' 2>/dev/null | sort -u > subs_anubis.txt) &
+            pid_anubis=$!
+        fi
+        
         # Wait for all to complete
         print_info "Waiting for all subdomain tools to complete..."
         if [ -n "${pid_subfinder:-}" ]; then
@@ -691,6 +709,54 @@ main() {
             fi
         else
             print_warning "curl not installed, skipping Shrewdeye..."
+        fi
+        
+        if [ -n "${pid_hackertarget:-}" ]; then
+            if wait $pid_hackertarget 2>/dev/null; then
+                if [ -s subs_hackertarget.txt ]; then
+                    print_success "HackerTarget completed - Found $(wc -l < subs_hackertarget.txt) subdomains"
+                else
+                    print_warning "HackerTarget returned no results"
+                fi
+            else
+                print_warning "HackerTarget failed"
+                failed_tools+=("hackertarget")
+                send_discord_error "$DOMAIN" "hackertarget" "Connection failed"
+            fi
+        else
+            print_warning "curl not installed, skipping HackerTarget..."
+        fi
+        
+        if [ -n "${pid_rapiddns:-}" ]; then
+            if wait $pid_rapiddns 2>/dev/null; then
+                if [ -s subs_rapiddns.txt ]; then
+                    print_success "RapidDNS completed - Found $(wc -l < subs_rapiddns.txt) subdomains"
+                else
+                    print_warning "RapidDNS returned no results"
+                fi
+            else
+                print_warning "RapidDNS failed"
+                failed_tools+=("rapiddns")
+                send_discord_error "$DOMAIN" "rapiddns" "Connection failed"
+            fi
+        else
+            print_warning "curl not installed, skipping RapidDNS..."
+        fi
+        
+        if [ -n "${pid_anubis:-}" ]; then
+            if wait $pid_anubis 2>/dev/null; then
+                if [ -s subs_anubis.txt ]; then
+                    print_success "Anubis-DB completed - Found $(wc -l < subs_anubis.txt) subdomains"
+                else
+                    print_warning "Anubis-DB returned no results"
+                fi
+            else
+                print_warning "Anubis-DB failed"
+                failed_tools+=("anubis-db")
+                send_discord_error "$DOMAIN" "anubis-db" "Connection failed"
+            fi
+        else
+            print_warning "curl or jq not installed, skipping Anubis-DB..."
         fi
         
         print_success "Parallel subdomain enumeration completed!"
@@ -775,6 +841,45 @@ main() {
             fi
         else
             print_warning "curl not installed, skipping Shrewdeye..."
+        fi
+        
+        # HackerTarget
+        if command -v curl &> /dev/null; then
+            print_info "Running HackerTarget..."
+            curl -s "https://api.hackertarget.com/hostsearch/?q=$DOMAIN" 2>/dev/null | cut -d',' -f1 | grep -v "error" > subs_hackertarget.txt
+            if [ -s subs_hackertarget.txt ]; then
+                print_success "HackerTarget completed - Found $(wc -l < subs_hackertarget.txt) subdomains"
+            else
+                print_warning "HackerTarget returned no results"
+            fi
+        else
+            print_warning "curl not installed, skipping HackerTarget..."
+        fi
+        
+        # RapidDNS
+        if command -v curl &> /dev/null; then
+            print_info "Running RapidDNS..."
+            curl -s "https://rapiddns.io/subdomain/$DOMAIN?full=1" 2>/dev/null | grep -oP '[\w\.-]+\.'$DOMAIN'' | sort -u > subs_rapiddns.txt
+            if [ -s subs_rapiddns.txt ]; then
+                print_success "RapidDNS completed - Found $(wc -l < subs_rapiddns.txt) subdomains"
+            else
+                print_warning "RapidDNS returned no results"
+            fi
+        else
+            print_warning "curl not installed, skipping RapidDNS..."
+        fi
+        
+        # Anubis-DB
+        if command -v curl &> /dev/null && command -v jq &> /dev/null; then
+            print_info "Running Anubis-DB..."
+            curl -s "https://anubisdb.com/anubis/subdomains/$DOMAIN" 2>/dev/null | jq -r '.[]' 2>/dev/null | sort -u > subs_anubis.txt
+            if [ -s subs_anubis.txt ]; then
+                print_success "Anubis-DB completed - Found $(wc -l < subs_anubis.txt) subdomains"
+            else
+                print_warning "Anubis-DB returned no results"
+            fi
+        else
+            print_warning "curl or jq not installed, skipping Anubis-DB..."
         fi
     fi
     
@@ -1761,6 +1866,9 @@ EOF
     echo -e "  ${CYAN}►${NC} ${BOLD}subs_assetfinder.txt${NC} - Subdomains from Assetfinder"
     echo -e "  ${CYAN}►${NC} ${BOLD}subs_crtsh.txt${NC} - Subdomains from Certificate Transparency logs (crt.sh)"
     echo -e "  ${CYAN}►${NC} ${BOLD}subs_shrewdeye.txt${NC} - Subdomains from Shrewdeye"
+    echo -e "  ${CYAN}►${NC} ${BOLD}subs_hackertarget.txt${NC} - Subdomains from HackerTarget"
+    echo -e "  ${CYAN}►${NC} ${BOLD}subs_rapiddns.txt${NC} - Subdomains from RapidDNS"
+    echo -e "  ${CYAN}►${NC} ${BOLD}subs_anubis.txt${NC} - Subdomains from Anubis-DB"
     echo -e "  ${CYAN}►${NC} ${BOLD}all_subs.txt${NC} - All unique subdomains combined"
     echo -e "  ${CYAN}►${NC} ${BOLD}live_hosts.txt${NC} - Active/responsive web servers"
     echo -e "  ${CYAN}►${NC} ${BOLD}tech_detect.txt${NC} - Detected technologies (CMS, frameworks, servers)"
