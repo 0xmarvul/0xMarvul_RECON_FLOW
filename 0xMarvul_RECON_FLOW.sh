@@ -29,7 +29,6 @@ ENABLE_PORT_SCAN=false
 ENABLE_PARALLEL=false
 ENABLE_MOREURLS=false
 ENABLE_GREP=false
-COMPARE_MODE=false
 
 # Skip functionality variables
 CURRENT_TOOL_PID=""
@@ -284,47 +283,6 @@ send_discord_error() {
     send_discord "⚠️ Tool Error" "An error occurred during scan of **$domain_escaped**" 16711680 "$fields" "Scan will continue with other tools"
 }
 
-# Function to find latest compare folder
-find_latest_compare() {
-    local target_dir="$1"
-    local compare_dir="$target_dir/compare"
-    
-    if [ ! -d "$compare_dir" ]; then
-        # No compare folder exists, compare with original
-        echo "$target_dir"
-        return
-    fi
-    
-    # Find highest numbered compare folder
-    local latest=$(ls -d "$compare_dir"/compare_* 2>/dev/null | sort -t_ -k2 -n | tail -1)
-    
-    if [ -z "$latest" ]; then
-        echo "$target_dir"
-    else
-        echo "$latest"
-    fi
-}
-
-# Function to get next compare number
-get_next_compare_number() {
-    local target_dir="$1"
-    local compare_dir="$target_dir/compare"
-    
-    if [ ! -d "$compare_dir" ]; then
-        echo "1"
-        return
-    fi
-    
-    local latest=$(ls -d "$compare_dir"/compare_* 2>/dev/null | sort -t_ -k2 -n | tail -1)
-    
-    if [ -z "$latest" ]; then
-        echo "1"
-    else
-        local num=$(basename "$latest" | sed 's/compare_//')
-        echo $((num + 1))
-    fi
-}
-
 # Check dependencies
 check_dependencies() {
     print_step "Checking Dependencies"
@@ -451,7 +409,6 @@ usage() {
     echo -e "  ${CYAN}-gf${NC}               Enable GF patterns to filter URLs for vulnerabilities"
     echo -e "  ${CYAN}-port${NC}             Enable port scanning with Naabu and Nmap"
     echo -e "  ${CYAN}-grep${NC}             Extract juicy URLs by keywords (configs, backups, secrets, etc.)"
-    echo -e "  ${CYAN}-compare${NC}          Compare subdomains with previous scan (subdomain enum + live check only)"
     echo -e "  ${CYAN}--webhook <url>${NC}   Use custom Discord webhook URL"
     echo -e "  ${CYAN}--no-notify${NC}       Disable Discord notifications"
     echo ""
@@ -467,7 +424,6 @@ usage() {
     echo -e "  ${CYAN}$0 target.com -secret${NC}"
     echo -e "  ${CYAN}$0 target.com -takeover${NC}"
     echo -e "  ${CYAN}$0 target.com -port${NC}"
-    echo -e "  ${CYAN}$0 target.com -compare${NC}"
     echo -e "  ${CYAN}$0 target.com -parallel -moreurls -dir -gf${NC}"
     echo -e "  ${CYAN}$0 target.com -dir -gf -secret -takeover -port${NC}"
     echo ""
@@ -507,10 +463,6 @@ main() {
                 ;;
             -grep)
                 ENABLE_GREP=true
-                shift
-                ;;
-            -compare)
-                COMPARE_MODE=true
                 shift
                 ;;
             -port)
@@ -569,40 +521,19 @@ main() {
     # Create output directory
     print_step "Creating Output Directory"
     if [ -d "$OUTPUT_DIR" ]; then
-        if [ "$COMPARE_MODE" = true ]; then
-            # In compare mode, we NEED the folder to exist - don't ask, just continue
-            print_info "Compare mode: Using existing scan data from $OUTPUT_DIR"
-        else
-            # Normal mode - ask user
-            print_warning "Directory $OUTPUT_DIR already exists"
-            read -p "Do you want to continue? (y/n): " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                print_error "Exiting..."
-                exit 1
-            fi
-            print_info "Continuing with existing directory..."
-        fi
-    else
-        # Directory doesn't exist
-        if [ "$COMPARE_MODE" = true ]; then
-            # In compare mode, folder MUST exist
-            print_error "No previous scan found for $DOMAIN"
-            print_error "Run a normal scan first: ./0xMarvul_RECON_FLOW.sh $DOMAIN"
+        # Normal mode - ask user
+        print_warning "Directory $OUTPUT_DIR already exists"
+        read -p "Do you want to continue? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_error "Exiting..."
             exit 1
-        else
-            # Normal mode - create the directory
-            mkdir -p "$OUTPUT_DIR"
-            print_success "Created directory: $OUTPUT_DIR"
         fi
-    fi
-    
-    # Additional check for compare mode: ensure subdomains.txt exists
-    if [ "$COMPARE_MODE" = true ] && [ ! -f "$OUTPUT_DIR/subdomains.txt" ]; then
-        print_error "No previous scan data found for $DOMAIN"
-        print_error "The file $OUTPUT_DIR/subdomains.txt does not exist"
-        print_error "Run a normal scan first: ./0xMarvul_RECON_FLOW.sh $DOMAIN"
-        exit 1
+        print_info "Continuing with existing directory..."
+    else
+        # Normal mode - create the directory
+        mkdir -p "$OUTPUT_DIR"
+        print_success "Created directory: $OUTPUT_DIR"
     fi
     
     cd "$OUTPUT_DIR" || exit 1
@@ -892,10 +823,7 @@ main() {
         total_subs=$(wc -l < all_subs.txt)
         print_success "Total unique subdomains found: $total_subs"
         
-        # Save as subdomains.txt for future comparisons (only if not in compare mode)
-        if [ "$COMPARE_MODE" = false ]; then
-            cp all_subs.txt subdomains.txt
-        fi
+        cp all_subs.txt subdomains.txt
     else
         print_error "No subdomain files found"
         total_subs=0
@@ -919,261 +847,6 @@ main() {
     else
         print_warning "httpx not installed or no subdomains, skipping..."
         live_hosts=0
-    fi
-    
-    # Compare Mode Logic
-    if [ "$COMPARE_MODE" = true ]; then
-        print_step "Compare Mode - Analyzing Changes"
-        print_info "Timestamp: $(get_timestamp)"
-        
-        # Check if output directory exists
-        if [ ! -d "$OUTPUT_DIR" ]; then
-            print_error "Output directory $OUTPUT_DIR does not exist. Run a normal scan first."
-            exit 1
-        fi
-        
-        # Check if previous scan exists
-        if [ ! -f "$OUTPUT_DIR/subdomains.txt" ]; then
-            print_error "No previous scan found for $DOMAIN."
-            print_error "The file $OUTPUT_DIR/subdomains.txt does not exist."
-            print_error "Run a normal scan first: ./0xMarvul_RECON_FLOW.sh $DOMAIN"
-            exit 1
-        fi
-        
-        # Find previous directory and get next compare number
-        previous_dir=$(find_latest_compare "$OUTPUT_DIR")
-        compare_num=$(get_next_compare_number "$OUTPUT_DIR")
-        compare_output_dir="$OUTPUT_DIR/compare/compare_$compare_num"
-        
-        # Create compare directory
-        mkdir -p "$compare_output_dir"
-        print_info "Creating compare directory: compare_$compare_num"
-        
-        # Get previous subdomains file
-        if [ "$previous_dir" = "$OUTPUT_DIR" ]; then
-            previous_subs="$previous_dir/subdomains.txt"
-        else
-            previous_subs="$previous_dir/all_subdomains.txt"
-        fi
-        
-        # Check if previous file exists
-        if [ ! -f "$previous_subs" ]; then
-            print_error "Previous subdomain file not found: $previous_subs"
-            exit 1
-        fi
-        
-        # Compare subdomains
-        print_info "Comparing subdomains..."
-        comm -13 <(sort "$previous_subs") <(sort all_subs.txt) > "$compare_output_dir/new_subdomains.txt"
-        comm -23 <(sort "$previous_subs") <(sort all_subs.txt) > "$compare_output_dir/removed_subdomains.txt"
-        
-        # Get counts
-        prev_sub_count=$(wc -l < "$previous_subs" 2>/dev/null || echo 0)
-        curr_sub_count=$(wc -l < all_subs.txt 2>/dev/null || echo 0)
-        new_sub_count=$(wc -l < "$compare_output_dir/new_subdomains.txt" 2>/dev/null || echo 0)
-        removed_sub_count=$(wc -l < "$compare_output_dir/removed_subdomains.txt" 2>/dev/null || echo 0)
-        
-        # Compare live hosts
-        if [ -s live_hosts.txt ]; then
-            print_info "Comparing live hosts..."
-            
-            # Get previous live hosts file
-            if [ "$previous_dir" = "$OUTPUT_DIR" ]; then
-                previous_live="$previous_dir/live_hosts.txt"
-            else
-                previous_live="$previous_dir/all_live.txt"
-            fi
-            
-            if [ -f "$previous_live" ]; then
-                # Create temporary files with mktemp using proper templates
-                local prev_live_tmp=$(mktemp -t compare_prev.XXXXXX)
-                local curr_live_tmp=$(mktemp -t compare_curr.XXXXXX)
-                local new_live_tmp=$(mktemp -t compare_new.XXXXXX)
-                local dead_tmp=$(mktemp -t compare_dead.XXXXXX)
-                
-                # Extract just hostnames for comparison
-                cat "$previous_live" | sed 's|https\?://||' | cut -d'/' -f1 | sort -u > "$prev_live_tmp"
-                cat live_hosts.txt | sed 's|https\?://||' | cut -d'/' -f1 | sort -u > "$curr_live_tmp"
-                
-                # Compare
-                comm -13 "$prev_live_tmp" "$curr_live_tmp" > "$new_live_tmp"
-                comm -23 "$prev_live_tmp" "$curr_live_tmp" > "$dead_tmp"
-                
-                # Get full URLs for new live hosts
-                if [ -s "$new_live_tmp" ]; then
-                    grep -F -f "$new_live_tmp" live_hosts.txt > "$compare_output_dir/new_live.txt" 2>/dev/null || touch "$compare_output_dir/new_live.txt"
-                else
-                    touch "$compare_output_dir/new_live.txt"
-                fi
-                
-                # Save now dead hosts list
-                cp "$dead_tmp" "$compare_output_dir/now_dead.txt" 2>/dev/null || touch "$compare_output_dir/now_dead.txt"
-                
-                # Get counts
-                prev_live_count=$(wc -l < "$prev_live_tmp" 2>/dev/null || echo 0)
-                curr_live_count=$(wc -l < "$curr_live_tmp" 2>/dev/null || echo 0)
-                new_live_count=$(wc -l < "$compare_output_dir/new_live.txt" 2>/dev/null || echo 0)
-                now_dead_count=$(wc -l < "$compare_output_dir/now_dead.txt" 2>/dev/null || echo 0)
-                
-                # Clean up temp files
-                rm -f "$prev_live_tmp" "$curr_live_tmp" "$new_live_tmp" "$dead_tmp"
-            else
-                print_warning "No previous live hosts file found"
-                prev_live_count=0
-                curr_live_count=$live_hosts
-                new_live_count=$live_hosts
-                now_dead_count=0
-                touch "$compare_output_dir/new_live.txt"
-                touch "$compare_output_dir/now_dead.txt"
-            fi
-        else
-            prev_live_count=0
-            curr_live_count=0
-            new_live_count=0
-            now_dead_count=0
-            touch "$compare_output_dir/new_live.txt"
-            touch "$compare_output_dir/now_dead.txt"
-        fi
-        
-        # Save all results
-        cp all_subs.txt "$compare_output_dir/all_subdomains.txt" 2>/dev/null || touch "$compare_output_dir/all_subdomains.txt"
-        if [ -f live_hosts.txt ]; then
-            cp live_hosts.txt "$compare_output_dir/all_live.txt" 2>/dev/null
-        else
-            touch "$compare_output_dir/all_live.txt"
-        fi
-        
-        # Create summary
-        cat > "$compare_output_dir/summary.txt" << EOF
-Compare Summary - $(date)
-Target: $DOMAIN
-Compared with: $previous_dir
-
-SUBDOMAINS:
-- Previous: $prev_sub_count
-- Current: $curr_sub_count
-- New: $new_sub_count
-- Removed: $removed_sub_count
-
-LIVE HOSTS:
-- Previous: $prev_live_count
-- Current: $curr_live_count
-- New Live: $new_live_count
-- Now Dead: $now_dead_count
-EOF
-        
-        # Display Results in CLI
-        echo ""
-        echo -e "${BOLD}${GREEN}╔═══════════════════════════════════════════════════════════╗${NC}"
-        echo -e "${BOLD}${GREEN}║             COMPARISON RESULTS                            ║${NC}"
-        echo -e "${BOLD}${GREEN}╚═══════════════════════════════════════════════════════════╝${NC}"
-        echo ""
-        
-        echo -e "${CYAN}Target:${NC} ${BOLD}$DOMAIN${NC}"
-        echo -e "${CYAN}Compared with:${NC} ${BOLD}$previous_dir${NC}"
-        echo -e "${CYAN}Results saved to:${NC} ${BOLD}$compare_output_dir${NC}"
-        echo ""
-        
-        echo -e "${BOLD}${BLUE}═══ SUBDOMAIN CHANGES ═══${NC}"
-        echo -e "  ${GREEN}►${NC} Previous count: ${BOLD}$prev_sub_count${NC}"
-        echo -e "  ${GREEN}►${NC} Current count:  ${BOLD}$curr_sub_count${NC}"
-        echo -e "  ${GREEN}►${NC} New:            ${BOLD}${GREEN}$new_sub_count${NC}"
-        echo -e "  ${RED}►${NC} Removed:        ${BOLD}${RED}$removed_sub_count${NC}"
-        echo ""
-        
-        if [ "$new_sub_count" -gt 0 ]; then
-            echo -e "${BOLD}${GREEN}╔═══ NEW SUBDOMAINS ═══╗${NC}"
-            if [ "$new_sub_count" -le 20 ]; then
-                while IFS= read -r subdomain; do
-                    echo -e "  ${GREEN}+${NC} $subdomain"
-                done < "$compare_output_dir/new_subdomains.txt"
-            else
-                head -20 "$compare_output_dir/new_subdomains.txt" | while IFS= read -r subdomain; do
-                    echo -e "  ${GREEN}+${NC} $subdomain"
-                done
-                echo -e "  ${YELLOW}... and $((new_sub_count - 20)) more (see new_subdomains.txt)${NC}"
-            fi
-            echo -e "${BOLD}${GREEN}╚═══════════════════════╝${NC}"
-            echo ""
-        fi
-        
-        if [ "$removed_sub_count" -gt 0 ]; then
-            echo -e "${BOLD}${RED}╔═══ REMOVED SUBDOMAINS ═══╗${NC}"
-            if [ "$removed_sub_count" -le 20 ]; then
-                while IFS= read -r subdomain; do
-                    echo -e "  ${RED}-${NC} $subdomain"
-                done < "$compare_output_dir/removed_subdomains.txt"
-            else
-                head -20 "$compare_output_dir/removed_subdomains.txt" | while IFS= read -r subdomain; do
-                    echo -e "  ${RED}-${NC} $subdomain"
-                done
-                echo -e "  ${YELLOW}... and $((removed_sub_count - 20)) more (see removed_subdomains.txt)${NC}"
-            fi
-            echo -e "${BOLD}${RED}╚═════════════════════════╝${NC}"
-            echo ""
-        fi
-        
-        echo -e "${BOLD}${BLUE}═══ LIVE HOST CHANGES ═══${NC}"
-        echo -e "  ${GREEN}►${NC} Previous count: ${BOLD}$prev_live_count${NC}"
-        echo -e "  ${GREEN}►${NC} Current count:  ${BOLD}$curr_live_count${NC}"
-        echo -e "  ${GREEN}►${NC} New Live:       ${BOLD}${GREEN}$new_live_count${NC}"
-        echo -e "  ${RED}►${NC} Now Dead:       ${BOLD}${RED}$now_dead_count${NC}"
-        echo ""
-        
-        if [ "$new_live_count" -gt 0 ]; then
-            echo -e "${BOLD}${GREEN}╔═══ NEW LIVE HOSTS ═══╗${NC}"
-            if [ "$new_live_count" -le 15 ]; then
-                while IFS= read -r host; do
-                    echo -e "  ${GREEN}+${NC} $host"
-                done < "$compare_output_dir/new_live.txt"
-            else
-                head -15 "$compare_output_dir/new_live.txt" | while IFS= read -r host; do
-                    echo -e "  ${GREEN}+${NC} $host"
-                done
-                echo -e "  ${YELLOW}... and $((new_live_count - 15)) more (see new_live.txt)${NC}"
-            fi
-            echo -e "${BOLD}${GREEN}╚═══════════════════════╝${NC}"
-            echo ""
-        fi
-        
-        if [ "$now_dead_count" -gt 0 ]; then
-            echo -e "${BOLD}${RED}╔═══ NOW DEAD HOSTS ═══╗${NC}"
-            if [ "$now_dead_count" -le 15 ]; then
-                while IFS= read -r host; do
-                    echo -e "  ${RED}⚫${NC} $host"
-                done < "$compare_output_dir/now_dead.txt"
-            else
-                head -15 "$compare_output_dir/now_dead.txt" | while IFS= read -r host; do
-                    echo -e "  ${RED}⚫${NC} $host"
-                done
-                echo -e "  ${YELLOW}... and $((now_dead_count - 15)) more (see now_dead.txt)${NC}"
-            fi
-            echo -e "${BOLD}${RED}╚═════════════════════╝${NC}"
-            echo ""
-        fi
-        
-        echo -e "${BOLD}${CYAN}═══════════════════════════════════════${NC}"
-        echo -e "${BOLD}${CYAN}Results saved to: $compare_output_dir${NC}"
-        echo -e "${BOLD}${CYAN}═══════════════════════════════════════${NC}"
-        echo ""
-        
-        # Ensure counts are numeric for JSON (default to 0 if empty)
-        new_sub_count=${new_sub_count:-0}
-        removed_sub_count=${removed_sub_count:-0}
-        new_live_count=${new_live_count:-0}
-        now_dead_count=${now_dead_count:-0}
-        
-        # Send Discord notification
-        send_discord "🔍 Compare Results - $DOMAIN" "Comparison completed with $(basename $previous_dir)" 3447003 '[
-            {"name": "🆕 New Subdomains", "value": "'"$new_sub_count"'", "inline": true},
-            {"name": "❌ Removed", "value": "'"$removed_sub_count"'", "inline": true},
-            {"name": "🟢 New Live", "value": "'"$new_live_count"'", "inline": true},
-            {"name": "🔴 Now Dead", "value": "'"$now_dead_count"'", "inline": true},
-            {"name": "📂 Results", "value": "compare_'"$compare_num"'", "inline": false}
-        ]' "0xMarvul RECON FLOW"
-        
-        print_success "Comparison completed!"
-        exit 0
     fi
     
     # Port Scanning (Optional)
